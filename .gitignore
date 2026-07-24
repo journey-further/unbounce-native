@@ -1,0 +1,14 @@
+# the working directory from the originating project: design source, real account exports,
+# the earlier generator, long-form notes. Evidence base, not deliverable — and it holds
+# client brand material, which never ships in this repo.
+ridgeline/
+
+node_modules
+.memsearch
+# local project config, incl. the client's brand design skill — brand is an input to this
+# plugin, never tracked in it
+.claude/
+.DS_Store
+*.unbounce
+*.work/
+__pycache__/

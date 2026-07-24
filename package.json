@@ -1,0 +1,8 @@
+{
+  "name": "unbounce-native",
+  "private": true,
+  "description": "Measurement dependency for skills/unbounce-page/scripts/measure.mjs. The transcriber needs none of this.",
+  "devDependencies": {
+    "playwright": "^1.61.1"
+  }
+}

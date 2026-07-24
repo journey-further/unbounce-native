@@ -1,0 +1,10 @@
+{
+  "name": "unbounce-native",
+  "description": "Design and build natively-editable Unbounce landing pages — real lp-pom-* elements the client can edit in the drag-and-drop editor, never one raw-HTML blob.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Journey Further"
+  },
+  "homepage": "https://github.com/journey-further/unbounce-native",
+  "keywords": ["unbounce", "landing-page", "classic-builder", "lp-pom"]
+}

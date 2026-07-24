@@ -1,0 +1,235 @@
+# The `.unbounce` file format
+
+Everything here is verified against two real Classic Builder exports and confirmed by a
+real upload that imported, rendered and served mobile correctly. Where something is
+unproven it says so — **unproven means "don't emit it", not "guess it"**.
+
+## TL;DR
+
+A `.unbounce` file is a **GNU tar** (not a zip, despite the common `.zip` rename trick) of
+JSON plus image assets. `elements.json` is a flat array of `lp-pom-*` elements, each with
+absolute geometry and a `breakpoints.mobile` override. Text is inline-styled HTML, so
+**arbitrary hex colours and any Google Font are expressible in the file even though the
+editor's own pickers can't set them.** That is the whole reason generating the file beats
+clicking in the UI — and the elements stay native, so the client can still edit them.
+
+## Archive layout
+
+```
+<archive-id>/                            # 16 hex chars, any value
+  assets/<uuid>/<filename>               # one dir per image asset
+  pages/<page-id>/
+    source.json                          # {"source_uuid": "<uuid>"}
+    metadata.json                        # {"name": "...", "champion_variant_id": "a"}
+    page_variants/a/
+      metadata.json                      # variant name, last_element_id, has_form, version "4.2", template_id
+      settings.json                      # builder settings, fonts, goals, breakpoint flags
+      elements.json                      # THE PAGE — flat array
+      styles.json                        # empty file (0 bytes) on a real export
+      javascripts.json                   # empty file (0 bytes)
+      keywords.json                      # empty file (0 bytes)
+      attachments.json                   # {"uuids": []}
+      sub_pages/<id>/                     # same structure recursively
+```
+
+Pack as **GNU tar** with the `<archive-id>/` dir at top level, members owned
+`nobody/nogroup`, uid/gid 0, directory entries included, no `.DS_Store`.
+
+`version: "4.2"`, `builderVersion: "v6.24.319"`, and `template_id: 0` (or `null`) are all
+accepted — there is no template registry check.
+
+### Sub-pages
+
+`metadata.json` carries `used_as`, and the sub-variant's `settings.json` carries a
+`mainPage: {uuid, variant_id}` back-reference to the parent's `source_uuid`.
+
+- `used_as: "form_confirmation"`, `path_name: "a-form_confirmation.html"` — **required** if
+  the page has a form with `confirmAction: "modal"`.
+- `used_as: "lightbox"` — **we never ship one.** See the `hasLightbox` warning below.
+
+## `elements.json`
+
+Flat array; the tree is expressed purely via `containerId`. IDs are
+`lp-pom-<type>-<n>` with `<n>` a single integer sequence shared across all types; the
+maximum is recorded as `last_element_id` in the variant `metadata.json`.
+
+**The nine primitives we emit** — exactly the set a real 92-element page used, no more:
+
+| Type | Role |
+|---|---|
+| `lp-pom-root` | the page; `contentWidth` per breakpoint |
+| `lp-pom-block` | a section — full-width band, stacks vertically, `fitWidthToPage: true` |
+| `lp-pom-box` | a rectangle: cards, overlays, dividers, accent strips, badges |
+| `lp-pom-text` | inline-styled HTML in `content.text` |
+| `lp-pom-image` | references an `assets/<uuid>/` file |
+| `lp-pom-button` | full up/hover/active styling, `action.type` url/form/tel |
+| `lp-pom-form` | the one form; submit button is a **separate child element** |
+| `lp-code` | Custom HTML (embeds, SVG flourishes, third-party widgets) |
+| `lp-stylesheet` | page-wide CSS, `containerId: null`, `placement: "body:after"` |
+
+`lp-pom-video` and lightbox buttons/sub-pages are **excluded**: video appears in no real
+export (untested path) and the lightbox is an active landmine (see `hasLightbox`). A video
+becomes an `lp-code` embed; a lightbox CTA becomes an anchor or a second page.
+`lp-script` exists (same shape as `lp-stylesheet`, `placement: "head"|"body:before"|"body:after"`)
+but nothing we generate needs it.
+
+### Layout model
+
+- Blocks are `position: relative` and stack in array order. Children are
+  `position: absolute` with `offset {left, top}` + `size {width, height}` **relative to
+  their container**, not to the page.
+- Every element carries `breakpoints.mobile` with override geometry (`visible`, `offset`,
+  `size`, `scale`). Desktop and mobile are **two hand-positioned layouts of one shared
+  element tree** — Classic does not reflow. `visible: false` hides an element at that
+  breakpoint.
+- Blocks also carry `grid` (columns/rowHeight/xGap/yGap/padding/snapToGrid). This is
+  **editor chrome only** — an off-grid element renders off-grid in preview regardless.
+  See `grid.md`.
+- **Nesting is grouping.** Dragging an element into a box in the editor is nothing but
+  `containerId` + offsets relative to the new parent — no flags, no extra fields
+  (verified field-by-field against a hand-grouped export). "Center to bounding box" just
+  computes `(box_w − child_w)/2` and stores an ordinary offset. This is why the DOM tree
+  of the design HTML can *be* the `containerId` tree.
+  **⚠️ Rebase both breakpoints consistently.** The editor re-parents only the breakpoint
+  you are editing, so a hand-grouped page can end up with correct mobile offsets and
+  double-counted desktop ones (an element at desktop x=1588 on a 1440 canvas). Generated
+  files must never reproduce that.
+
+### Styling — the editor's limits do not apply
+
+- **Text:** `content.text` is raw HTML with inline styles — any `font-family`,
+  `font-size`, `color`, `line-height` per span. `content.fonts` lists families used.
+- **Buttons:** `up`/`hover`/`active` states each take arbitrary hex `backgroundColor` /
+  `color` / gradient, plus `cornerRadius`, `fontFamily`, `letterSpacing`, `textTransform`.
+- **Backgrounds:** solid hex, gradient, or background image per block via `newBackground`.
+- **Fonts:** register in `settings.json` → `fonts[]`
+  (`{family, variants:[{name, fontWeight, fontStyle, displayName}]}`) **and**
+  `webFontsInUse: {family: [weights]}`, then use the family in inline styles. No picker
+  involved. Confirmed rendering for Google Fonts declared this way.
+
+### Images — native images STRETCH
+
+There is **no native block background-image** to lean on; real exports use solid-colour
+blocks plus a full-bleed `lp-pom-image` for every background. And an `lp-pom-image` scales
+to its box with no cover/contain. So:
+
+- **Backgrounds & cropped photos:** size the element to the crop frame, `maintainAR: false`,
+  and add an `lp-stylesheet` rule
+  `#lp-pom-image-<id> img{width:100%!important;height:100%!important;object-fit:cover!important}`.
+- **Logos & content images:** aspect-ratio-correct dimensions, `maintainAR: true`,
+  `object-fit: contain`. **Never size a small image up to full width** — it stretches tall.
+
+Asset record shape (mirror it exactly — this is what makes ingestion work):
+
+```json
+{"company_id": 0, "uuid": "<uuid>", "name": "roof.webp",
+ "unique_url": "/assets/<uuid>/<8hex>-roof.webp",
+ "content_url": "/assets/<uuid>/roof.original.webp?1779210799",
+ "content_content_type": "image/webp", "content_file_size": 123456,
+ "size": {"width": 2189, "height": 1642}, "sizeVerified": true}
+```
+
+`size` must be the **real natural pixel size** — the transcriber cannot read image headers
+(stdlib can't parse webp), so `measure.mjs` reports `naturalWidth`/`naturalHeight` and the
+design HTML carries them as `data-nat="WxH"`. webp and png both ingest fine. Asset
+ingestion runs ImageMagick server-side, so odd synthetic PNGs can be rejected; real photos
+are fine.
+
+### Forms
+
+**One form per page — a Classic hard limit.** Additional CTAs anchor back to it
+(`action: {type: "url", url: "#lp-pom-form-<n>"}`).
+
+- `content.fields[]`: `{name, id, placeholder, type: "text", lpType, show: {phone, email},
+  validations: {required, email, phone}, uuid}`, plus `validationType: "north-american"` on
+  phone fields.
+- `content.steps[]`: `[{uuid, fieldUUIDs: [...]}]` — field ordering.
+- **Proven `lpType` values only:** `single-line-text` (optionally with
+  `validations.email` / `validations.phone`). `<select>` and `<textarea>` appear in
+  neither real export, so their in-file shape is unknown — the transcriber rejects them
+  and tells you to add the field natively in the editor.
+- The submit button is a **separate `lp-pom-button` whose `containerId` is the form**,
+  referenced by `content.buttonId`. Because it is a form child, any block-level layout
+  pass misses it — size it explicitly at both breakpoints or it clips.
+- **`publishedStyles` is a TOP-LEVEL array on the form element**, not under `content`
+  (a check that looked under `content` wrongly reported it null). 3 entries per field —
+  `#container_<id>` (h 53), the input item (top 19, h 34), `#label_<id>` (h 15) — on a
+  **71px stride**. Real exports carry width 468 and width 240 respectively.
+- **⚠️ Desktop and mobile `publishedStyles` must be independent copies.** Sharing one list
+  object between breakpoints silently halved the desktop field widths when the mobile
+  widths were rewritten.
+
+### Custom HTML (`lp-code`)
+
+`content.html` = the raw snippet, positioned like any other element. Third-party review
+widgets and embed scripts live here.
+
+**⚠️ Never put the literal string `<head>` in any `lp-code` / `lp-stylesheet` content.** The
+publisher literal-replaces every occurrence anywhere in page content — even inside script
+bodies and JSON strings — with an injected meta tag, corrupting it.
+
+### Stylesheets (`lp-stylesheet`)
+
+`containerId: null`, `placement: "body:after"`, `content.html` = `<style>…</style>`.
+
+**Carry mechanics only** — image `object-fit`, form-field `:focus` ring, link reset.
+Everything content- and brand-related stays **inline** so the client can edit copy, colour
+and font in the native editor. Rule of thumb: persistent CSS is behaviour the client
+shouldn't touch; inline is what they will. Brand tokens in the sheet create a second
+source of truth the editor can't reach.
+
+## `settings.json` — the three flags that decide whether mobile works
+
+```json
+{"defaultWidth": 760, "builderVersion": "v6.24.319", "contentType": "pageVariant",
+ "activeGoals": [{"type": "form", "url": "/fs", "sortOrder": 1}],
+ "fonts": [...], "webFontsInUse": {...},
+ "multipleBreakpointsEnabled": true, "hasLightbox": false,
+ "tabletBreakpointDisabled": true, "multipleBreakpointsVisibility": true,
+ "globalImageQuality": {"value": 60, "compressPng": true}, "refId": 1}
+```
+
+Three render-breakers, each found by diffing a save-repaired export against a generated
+one. All three present as "looks fine in the editor, wrong on a real phone":
+
+1. **`multipleBreakpointsEnabled` must be `true`.** Both real exports ship it `false`. With
+   it false the mobile geometry still exists and the *editor* shows it when you toggle
+   breakpoints, but **preview and live serve the DESKTOP layout to phones**. Set it on
+   **every** `settings.json` in the archive, including sub-pages.
+2. **`hasLightbox` must be `false` if there is no lightbox sub-page.** The blank template
+   ships it `true`. Left true with no lightbox data, the **live** renderer hunts for the
+   missing data and drops the whole page to the desktop layout on mobile. The editor is
+   tolerant, so this is the "works in preview, broken live until I open and save" symptom.
+3. **Every `scale` must be a NUMBER — never the string `"fit"`.** The editor tolerates
+   `scale: "fit"`; the live/preview renderer rejects it and **drops the entire page's
+   mobile layout to desktop**. On save Unbounce converts visible `"fit"` values to a
+   computed numeric scale and leaves hidden ones alone. Emit numbers only.
+
+## Upload
+
+- **Download/upload is Classic Builder only.** Smart Builder pages cannot be exported or
+  imported at all.
+- All Pages → "Upload an Unbounce Page" → one file at a time, processed async, email
+  confirms. There is no public import API.
+- Uploaded pages arrive **unpublished**, stats zeroed, and often in **"weighted" (A/B)
+  routing mode even as a single variant** — reset traffic mode after import.
+- Preview a variant without burning stats by appending the variant letter + `.html` to the
+  published URL (`…/my-page/a.html`).
+- Element `type`/`id` map 1:1 to published DOM ids and classes, so anchors and custom CSS
+  can target them reliably.
+- Cross-account moves: a sub-account copy loses stats; fully separate accounts need
+  Unbounce Support.
+
+## The probe-then-diff pattern
+
+Every non-obvious fact above was found the same way, and it is the definitive way to
+answer the next format question:
+
+1. Generate a deliberately varied page (e.g. six sections each with a different grid
+   config) and upload it.
+2. Inspect in the editor / on a real device, then **download it again**.
+3. Diff the downloaded JSON against what you uploaded. What Unbounce silently changed is
+   the answer.
+
+`scale: "fit"`, `hasLightbox`, `multipleBreakpointsEnabled` and the shared-`publishedStyles`
+bug were all found this way. Do this before writing an emitter for anything unproven.
