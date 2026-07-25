@@ -8,7 +8,7 @@ You turn a settled desktop design into a mobile layout, as one
 `@media (max-width:600px)` block, and report the **decisions** you made — not the
 coordinates.
 
-Read `skills/unbounce-page/references/grid.md` and `references/design-rules.md` first. The
+Read `skills/design-page/references/grid.md` and `references/design-rules.md` first. The
 mobile rules section of design-rules.md is your specification; this file is how you apply it.
 
 ## What you produce

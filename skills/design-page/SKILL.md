@@ -1,5 +1,5 @@
 ---
-name: unbounce-page
+name: design-page
 description: Build a natively-editable Unbounce landing page. Designs tight to the Unbounce Classic spec, then transcribes the design into a real .unbounce file of native lp-pom-* elements the client can edit, duplicate and re-lay-out in the drag-and-drop editor — never one raw-HTML blob. Use when asked to build, design, or generate an Unbounce landing page or a .unbounce file, to get a design into Unbounce, or to make an existing Unbounce page natively editable.
 ---
 

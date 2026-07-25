@@ -8,9 +8,17 @@ plus brand tokens — no memory of how it was built the first time. Then upload 
 real phone.
 **Context for next agent:**
 - This is a **test of the packaging as much as the pipeline**. Anything not written into
-  `skills/unbounce-page/references/` is lost when that session begins. If the cold session
+  `skills/design-page/references/` is lost when that session begins. If the cold session
   has to ask a question the references should have answered, that's the finding — fix the
   reference doc, don't answer it inline.
+- **Run it on three tiers: Sonnet/medium, Sonnet/high, Opus/high.** Same brief, same brand
+  tokens, three fresh sessions. The instructions are the variable under test, not the model —
+  anything Opus gets right and Sonnet/medium doesn't is a gap in `SKILL.md` or a reference
+  doc, so fix the doc rather than raising the floor. Watch specifically for: skipping the
+  measure step, guessing an unproven primitive instead of refusing, and "correcting" a design
+  in the transcriber instead of in the design HTML.
+- Consequence for the agents: **leave `model:` out of the agent frontmatter** so all three
+  runs vary end-to-end. Pin a tier only if a run shows a specific agent needs one.
 - Definition of done: imports; renders correctly **live** on mobile (not just editor
   preview); images correct; the client can drag a whole card as one unit.
 - Benchmark from the previous, mangler-based approach: 87/104 mobile elements landed within

@@ -1,7 +1,7 @@
 # unbounce-native — repo notes
 
 A Claude Code plugin that builds natively-editable Unbounce landing pages. See `README.md`
-for what it is and `skills/unbounce-page/SKILL.md` for how it works.
+for what it is and `skills/design-page/SKILL.md` for how it works.
 
 ## Working in here
 
@@ -12,10 +12,10 @@ for what it is and `skills/unbounce-page/SKILL.md` for how it works.
   the design source, the earlier generator, both real Unbounce exports, and the long-form
   format notes. It is gitignored on purpose: it's the evidence base, not the deliverable.
   Read it freely; never move anything from it into a tracked path.
-- The reference docs under `skills/unbounce-page/references/` are the persistence layer. If
+- The reference docs under `skills/design-page/references/` are the persistence layer. If
   you learn a platform fact, it goes there or it's lost — that's what makes a cold-start
   session possible.
-- Run `python3 skills/unbounce-page/scripts/test_transcribe.py` after touching the
+- Run `python3 skills/design-page/scripts/test_transcribe.py` after touching the
   transcriber.
 
 ## The two rules that shape every decision

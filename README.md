@@ -27,9 +27,9 @@ Then just ask for what you want: *"build me an Unbounce landing page for …"*.
 
 | | |
 |---|---|
-| `skills/unbounce-page/` | the skill: how to design for the platform, plus the reference docs |
-| `skills/unbounce-page/scripts/transcribe.py` | design HTML → `.unbounce`. **Python stdlib only** |
-| `skills/unbounce-page/scripts/measure.mjs` | real-browser text heights, image sizes, overflow flags |
+| `skills/design-page/` | the skill: how to design for the platform, plus the reference docs |
+| `skills/design-page/scripts/transcribe.py` | design HTML → `.unbounce`. **Python stdlib only** |
+| `skills/design-page/scripts/measure.mjs` | real-browser text heights, image sizes, overflow flags |
 | `agents/brand-extract.md` | brand input (URL / `DESIGN.md` / screenshot / PDF) → tokens |
 | `agents/mobile-derive.md` | desktop layout → mobile overrides + a decision report |
 | `agents/build-pack.md` | design HTML → verified `.unbounce` archive |
@@ -65,5 +65,5 @@ a real phone. The plugin refuses instead.
 ## Tests
 
 ```bash
-python3 skills/unbounce-page/scripts/test_transcribe.py
+python3 skills/design-page/scripts/test_transcribe.py
 ```
