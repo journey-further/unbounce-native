@@ -73,6 +73,14 @@ becomes an `lp-code` embed; a lightbox CTA becomes an anchor or a second page.
 `lp-script` exists (same shape as `lp-stylesheet`, `placement: "head"|"body:before"|"body:after"`)
 but nothing we generate needs it.
 
+**`customClassnames`** — a top-level string key on any element, sibling of `breakpoints`,
+absent unless set. It is the editor's own "custom class" field, so it round-trips safely.
+Proven by setting a class in the editor on an `lp-pom-box` and re-downloading:
+`"customClassnames": "test_class"`. This is the supported way to give the stylesheet a
+shared hook instead of a list of ids, and the client can add or remove the class from the
+UI. Space-separating multiple classes is the obvious reading of the plural name but is
+**not yet proven** — probe before emitting more than one.
+
 ### Layout model
 
 - Blocks are `position: relative` and stack in array order. Children are
@@ -101,7 +109,11 @@ but nothing we generate needs it.
   `font-size`, `color`, `line-height` per span. `content.fonts` lists families used.
 - **Buttons:** `up`/`hover`/`active` states each take arbitrary hex `backgroundColor` /
   `color` / gradient, plus `cornerRadius`, `fontFamily`, `letterSpacing`, `textTransform`.
-- **Backgrounds:** solid hex, gradient, or background image per block via `newBackground`.
+  **No border** — `{"style": "none"}` is hardcoded in the `up` state, so an outline button
+  is not expressible.
+- **Backgrounds:** solid hex only — every emitter writes `newBackground.type:
+  "solidColor"`. A gradient in the design flattens to a composite wash; the real gradient
+  JSON shape is unproven, so probe (upload → download → diff) before ever emitting one.
 - **Fonts:** register in `settings.json` → `fonts[]`
   (`{family, variants:[{name, fontWeight, fontStyle, displayName}]}`) **and**
   `webFontsInUse: {family: [weights]}`, then use the family in inline styles. No picker
@@ -118,6 +130,9 @@ to its box with no cover/contain. So:
   `#lp-pom-image-<id> img{width:100%!important;height:100%!important;object-fit:cover!important}`.
 - **Logos & content images:** aspect-ratio-correct dimensions, `maintainAR: true`,
   `object-fit: contain`. **Never size a small image up to full width** — it stretches tall.
+- **No alpha.** `lp-pom-image` has no opacity channel; `background.opacity` on an image is
+  the fallback fill, not the image. A washed photo is a solid wash on the block, not a
+  translucent image.
 
 Asset record shape (mirror it exactly — this is what makes ingestion work):
 
@@ -153,8 +168,27 @@ are fine.
   pass misses it — size it explicitly at both breakpoints or it clips.
 - **`publishedStyles` is a TOP-LEVEL array on the form element**, not under `content`
   (a check that looked under `content` wrongly reported it null). 3 entries per field —
-  `#container_<id>` (h 53), the input item (top 19, h 34), `#label_<id>` (h 15) — on a
-  **71px stride**. Real exports carry width 468 and width 240 respectively.
+  `#container_<id>`, the input item, `#label_<id>`. Real exports carry width 468 (desktop)
+  and 240 (mobile).
+- **⚠️ `publishedStyles` is DERIVED, not authored — the editor recomputes it on save.**
+  Confirmed by round-trip diff: a page uploaded with the 53/71/34/19/15 numbers copied from
+  a real export came back 62/80/46/16/12 after one editor save, because our form chrome is
+  taller than that export's. Hard-coded numbers publish a field stack that doesn't match the
+  inputs' real heights — fields overlap on a page published without ever opening the editor.
+  The formula, fitted to both observations:
+
+  ```
+  label height    = round(label font size * 1.1)      # 11 -> 12, 14 -> 15
+  input height    = geometry.field.height + 2 * border width
+  input top       = label height + label margin.bottom
+  container height= input top + input height
+  stride          = container height + field margin.bottom
+  ```
+
+  The transcriber derives all five from the chrome constants in `form()`. Change the chrome
+  and the stride follows; the design-time CSS in `design-rules.md` mirrors the same numbers.
+- `computations.labelHeight` on buttons is likewise recomputed from the real font metrics
+  (19 → 14/17 on save). Harmless — it's a cache, not layout input.
 - **⚠️ Desktop and mobile `publishedStyles` must be independent copies.** Sharing one list
   object between breakpoints silently halved the desktop field widths when the mobile
   widths were rewritten.
@@ -171,6 +205,10 @@ bodies and JSON strings — with an injected meta tag, corrupting it.
 ### Stylesheets (`lp-stylesheet`)
 
 `containerId: null`, `placement: "body:after"`, `content.html` = `<style>…</style>`.
+
+**Every rule targets a `customClassnames` class, never an element id** — see the hard rule
+in `SKILL.md`. `object-fit` ships as `.fit-cover img{…}` / `.fit-contain img{…}`, one rule
+however many images, and the client can move an image between them from the editor.
 
 **Carry mechanics only** — image `object-fit`, form-field `:focus` ring, link reset.
 Everything content- and brand-related stays **inline** so the client can edit copy, colour

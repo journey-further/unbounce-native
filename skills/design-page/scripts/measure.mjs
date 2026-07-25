@@ -24,7 +24,7 @@ await page.goto(url, { waitUntil: 'networkidle' });
 await page.evaluate(() => document.fonts.ready);
 
 const report = await page.evaluate((bp) => {
-  const out = { text: {}, images: {}, overflow: [], sections: {} };
+  const out = { text: {}, images: {}, overflow: [], slack: [], sections: {} };
 
   // ⚠️ scrollHeight is max(content, clientHeight) — a declared height FLOORS it, so reading
   // it directly can only ever confirm the number you already wrote. Measure with the height
@@ -41,7 +41,15 @@ const report = await page.evaluate((bp) => {
     return h;
   };
 
-  for (const el of document.querySelectorAll('[data-lp-type="text"]')) out.text[el.id] = contentHeight(el);
+  for (const el of document.querySelectorAll('[data-lp-type="text"]')) {
+    const ch = contentHeight(el);
+    out.text[el.id] = ch;
+    // slack: a text box taller than its content is as wrong as one shorter — declared
+    // heights must EQUAL measured content. Text only: box/button height over content
+    // is designed padding, and a page-wide check would drown the signal.
+    const box = Math.ceil(el.getBoundingClientRect().height);
+    if (box - ch > 4) out.slack.push({ id: el.id, declared: box, content: ch });
+  }
   for (const el of document.querySelectorAll('[data-lp-type="image"]')) {
     out.images[el.id] = `${el.naturalWidth}x${el.naturalHeight}`;
     if (!el.naturalWidth) out.overflow.push({ id: el.id, axis: 'asset', box: 0, content: 0, text: 'image failed to load: ' + el.getAttribute('src') });
@@ -107,6 +115,10 @@ report.breakpoint = bp;
 report.viewport = WIDTH;
 if (report.pageWidth > WIDTH) report.overflow.push({ id: '(page)', axis: 'width', box: WIDTH, content: report.pageWidth });
 console.log(JSON.stringify(report, null, 1));
+if (report.slack.length) {
+  console.error(`\n${report.slack.length} slack text height(s) at ${bp} — declared exceeds measured content by >4px; write the measured heights back:`);
+  for (const s of report.slack) console.error(`  ${s.id}: declared ${s.declared} > content ${s.content}`);
+}
 if (report.overflow.length) {
   console.error(`\n${report.overflow.length} overflow(s) at ${bp} — fix the design, do not transcribe:`);
   for (const o of report.overflow) console.error(`  ${o.id} ${o.axis}: box ${o.box} < content ${o.content}  "${o.text || ''}"`);

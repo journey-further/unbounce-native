@@ -1,5 +1,47 @@
 # unbounce-native — backlog
 
+## Probe: native gradient backgrounds (`newBackground.type: "gradient"`)
+**Origin:** bakeoff finding F16 — all three cold-start arms named the hero's
+`linear-gradient` overlay as the largest visible fidelity loss; `format.md` used to promise
+gradients the emitters can't write (every emitter is `solidColor`-only; doc corrected).
+**Idea:** lift the real gradient JSON shape from a template export if one carries it, emit it
+on a block and a box in a probe page, upload, **download again**, diff. If it round-trips,
+add gradient support to `transcribe.py` — the single highest-fidelity capability available.
+**Context for next agent:** the probe-then-diff pattern is in `format.md`; the root element
+already carries a vestigial `gradient.baseColor` key to compare against. Unproven means
+refuse — do not emit a guessed shape.
+
+## Parse real box-shadow values into `_effect()`
+**Origin:** bakeoff finding F20 — `box-shadow` is read as a boolean and every shadow ships
+at fixed opacity 22 / offset 12 / blur 34; arm c lost two visibly different shadows to it.
+**Idea:** parse the shorthand's offset/blur/rgba into the effect JSON. Mechanical, no probe
+needed — the shape already ships with constants, this only fills it with the design's values.
+**Context for next agent:** `_effect()` in `transcribe.py`; `hexcolor()` now finds colour
+tokens anywhere in a shorthand. Add a `test_transcribe.py` case. Docs currently state the
+boolean behaviour (`design-rules.md` box bullet) — update them when this lands.
+
+## Re-factor `mobile-derive` to return decisions + a height table, not a CSS block
+**Origin:** bakeoff finding F22 (supplement) — arm c argued a standalone `@media` block
+competes with generator-owned geometry: "mobile-derive should return decisions plus a height
+table, so its output composes with a generator instead of competing with one."
+**Idea:** change the agent's contract so the parent (or its scratch generator, per SKILL.md
+step 3) derives the geometry from the agent's editorial decisions and measured heights.
+**Context for next agent:** the interim fix (a transcribe.py exit gate in
+`agents/mobile-derive.md`) already stops non-conformant output; this entry is the deeper fix.
+Decide against the evidence in `ridgeline/BAKEOFF-FINDINGS.md` F22 — the editorial half of
+the agent is proven valuable, the geometry half caused every defect.
+
+## Probe: the `<p>` strut floor in `measure.mjs`
+**Origin:** bakeoff finding F5b — a `<p>` at `line-height:normal` floors `contentHeight()`
+at ~22px, so small captions "measure" 22 and ~30 elements per page carry harness-inflated
+heights. Open question: does the same strut exist in Unbounce's live render (making the
+measurement *correct*), or is it preview-only slack?
+**Context for next agent:** decide between requiring `line-height` on the `<p>` in the
+design contract vs neutralising the strut in `contentHeight()` — **probe first** (upload a
+page with a 10px caption, measure the live element). Cautionary: arm b's blanket
+`line-height:0` collapsed multi-line wraps — the design-contract route needs a real value,
+not a zero.
+
 ## Prove v1 end-to-end from a cold start
 **Origin:** the plan's definition of done. The skeleton is built but nothing has been
 generated through it yet.
@@ -25,22 +67,6 @@ real phone.
   20px of a hand-placed export. Beat that without a post-hoc pass.
 - The old working material — design source, the earlier generator, both real exports — is in
   the untracked `ridgeline/` directory. Use it as evidence, don't copy from it.
-
-## Validate the design form HTML against Unbounce's real form chrome
-**Origin:** decision 16 — the form is a real `<form>` in the design HTML, so its height is
-measured rather than estimated.
-**Idea:** the design-time CSS in `references/design-rules.md` approximates Unbounce's field
-chrome (71px stride, 53/34/15 container/input/label). Real Unbounce wraps fields in its own
-markup with its own padding, label placement and submit metrics, so measured form height is
-**close, not exact** — and because everything below the form stacks from that height, the
-error propagates down the page. Extract the real published field markup and mirror it.
-**Context for next agent:**
-- Cheapest route: publish a page with a form, view source, lift the rendered field markup and
-  computed styles. Then measurement is exact rather than approximate.
-- `publishedStyles` shapes are already confirmed (top-level array, 3 entries per field, 71px
-  stride, independent copies per breakpoint). The open question is only the *rendered* chrome.
-- Only worth doing once the rest of the pipeline is measuring accurately — a refinement on a
-  working loop, not a blocker.
 
 ## Pin the mobile breakpoint crossover empirically
 **Origin:** `references/grid.md` hardcodes `@media (max-width:600px)`.
@@ -105,18 +131,3 @@ becomes a single command instead of a manual download.
   whole page into one `lp-code` element and hand-wires forms via a script. Use it for
   transport only, never for generation.
 - There is no public import API; the tool drives the same web upload path.
-
-## Confirm `company_id: 0` is accepted on asset ingestion
-**Origin:** the transcriber generates the archive from scratch rather than cloning an account
-export, so it has no real `company_id` to reuse.
-**Idea:** asset records carry `company_id`, and the only value ever verified is a real
-account's. `0` is the default and is probably ignored on import (the server re-ingests the
-file), but it is untested.
-**Context for next agent:**
-- Test on the next upload: if images come through, `0` is fine and this closes.
-- If ingestion fails, `--company-id N` already exists — lift the real value from any export of
-  the target account, and document that in `references/format.md`.
-- Related unknown, same test: whether the from-scratch archive tree (rather than a cloned
-  known-good skeleton) imports cleanly. The previous approach cloned an export; this one
-  builds the tree from documented shapes. `unbounce-mcp` proves minimal sidecars are accepted,
-  so the risk is low, but it is the one structural thing this rewrite hasn't proven.
