@@ -13,6 +13,13 @@
   Multiple brands under one client = one folder each, each with its own copy of this file.
   Brands share nothing by default; a shared value that really is shared gets duplicated, not
   abstracted into a parent.
+
+  HOW TO FILL IT IN: hand this file to Claude with the plugin installed and ask it to fill in
+  what it can. Claude can find these itself: the domain and slug options (`list_domains`), the
+  icon set and brand-token source (whatever `brand-extract` resolved), and which MCP tool-name
+  prefix the deny block needs (read `.mcp.json`). Only you can answer these: the mandatory form
+  fields, the widget embed snippets, the domain-level scripts, the legal and footer wording, and
+  who does the post-upload checklist. Expect Claude to ask for that half.
 -->
 
 ## Brand tokens
