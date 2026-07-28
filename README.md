@@ -48,6 +48,29 @@ Design and build need no credentials and no network beyond design-time measureme
 and editing need the Unbounce MCP; without it those skills' tools are simply absent and the
 rest is unaffected.
 
+## Connecting an Unbounce account (optional)
+
+Designing and building need nothing. To also upload and edit, paste an Unbounce API key when
+the plugin asks for one at install (Unbounce: **Settings → API keys**). It goes to your OS
+keychain, never to this repo. Leave it blank and everything except the two connected skills
+still works.
+
+The plugin bundles the MCP server itself — `.mcp.json` points at
+[`journey-further/unbounce-mcp`](https://github.com/journey-further/unbounce-mcp), a fork of
+[cgilchrist/unbounce-mcp](https://github.com/cgilchrist/unbounce-mcp) that adds the
+`get_variant_elements` / `set_variant_elements` pair a native page needs. It is pinned to a
+tag, so upgrading is a deliberate edit rather than whatever `npx` happens to resolve.
+
+Two things to know:
+
+- **First use opens a browser window to log in to Unbounce.** The API key alone doesn't cover
+  the editor endpoints, so the server keeps a session in `~/.unbounce-mcp/session.json`. It's
+  a one-time interactive step and it cannot be automated away.
+- **If you already added this MCP by hand** (`claude mcp add unbounce …`), remove it, or you
+  get every tool twice under two names.
+
+`.mcp.json` and `plugin.json` changes need `/reload-plugins` or a restart to take effect.
+
 ## Requirements
 
 - **Transcription:** Python 3, stdlib only. No pip, no network — works offline and in CI.

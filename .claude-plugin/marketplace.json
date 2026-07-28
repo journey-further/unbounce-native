@@ -4,6 +4,7 @@
     "name": "Journey Further",
     "url": "https://github.com/journey-further"
   },
+  "description": "Journey Further's landing-page tooling for Claude Code.",
   "plugins": [
     {
       "name": "unbounce-native",

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "unbounce": {
+      "command": "npx",
+      "args": ["-y", "github:journey-further/unbounce-mcp#v0.1.0-jf.1"],
+      "env": {
+        "UNBOUNCE_API_KEY": "${user_config.unbounce_api_key}"
+      }
+    }
+  }
+}

@@ -67,11 +67,32 @@ v2 in progress (`SPEC-v2.md` is the executable plan, `PLAN-v2.md` the decisions)
 
 Done: WP1 the four-skill split · WP3 the client-setup template and these constraints ·
 WP2 P1 **hidden fields are supported** (shape proven from a purpose-built export, emitted and
-tested) · WP2 P5 half — inline SVG icons render live.
+tested) · WP2 P5 half — inline SVG icons render live · WP4 the element tool pair and the
+plugin wiring.
 
-Outstanding: WP4 the element tool pair in the fork
-(`github.com/journey-further/unbounce-mcp`, forked 2026-07-28, no PR opened yet) · WP5 mutate
-probes and a working `edit-page` · WP6 merge and cold-start acceptance.
+Outstanding: WP5 mutate probes and a working `edit-page` · WP6 merge and cold-start
+acceptance.
+
+### The fork (WP4, 2026-07-28)
+
+`get_variant_elements` / `set_variant_elements` live in `journey-further/unbounce-mcp` and the
+plugin's root `.mcp.json` pins them by tag. Facts worth not rediscovering:
+
+- **The fork's `master` is protected by an org ruleset** — direct pushes are declined, a PR
+  with an approving review is required. The work therefore sits on the `feat/variant-elements`
+  branch and the **tag `v0.1.0-jf.1`** is what `.mcp.json` resolves. `master` is still at
+  upstream. Bumping the pin means a new tag, not a push to master.
+- **`npx github:org/repo#tag` works as a plugin MCP command** — probed end to end (clean
+  install, server starts, 46 tools listed including the new pair), so publishing the fork to
+  npm isn't needed. The pin is deliberate: the plugin's own `version` does not constrain what
+  `npx` resolves.
+- **The API key is optional by design.** `userConfig.unbounce_api_key` has no `required: true`,
+  so a baseline user installs, skips it, and designs and builds offline. Note the docs make
+  `title` a required field on a `userConfig` option; SPEC-v2 omits it.
+- **No upstream PR and no licence ask** — deliberate, per the 2026-07-28 decision. ADR 0001's
+  "PR'd upstream in parallel" is the eventual intent, not a current task.
+- The write half is **unproven against a live variant** — that is WP5, and `edit-page` stays
+  blocked until it passes. The read half is safe.
 
 **Blocked on the client, not on us** (2026-07-28): anything needing a published page or a real
 device. The client has no domain set up, so P2 (global lightbox — also no admin access to
