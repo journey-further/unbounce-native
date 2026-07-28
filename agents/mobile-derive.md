@@ -53,11 +53,12 @@ JUDGEMENT CALLS
   photo crops shortened 240 → 180 to keep the section scrollable.
 
 NEEDS RE-MEASURE
-  yes — run `node scripts/measure.mjs design.html mobile` and fold the heights back in.
+  yes — run `node skills/design-page/scripts/measure.mjs design.html mobile` and fold the
+    heights back in.
 ```
 
 **3 · The exit gate — before returning:** run
-`python3 skills/design-page/scripts/transcribe.py design.html /tmp/probe.unbounce` and fix
+`python3 skills/build-page/scripts/transcribe.py design.html /tmp/probe.unbounce` and fix
 any error it reports; it must exit 0. The throwaway output is a validator run, not a
 deliverable. `measure.mjs` exiting 0 does **not** mean the block is grid-conformant or
 complete — it doesn't check grid alignment at all, and a missing rule renders fine at 320px

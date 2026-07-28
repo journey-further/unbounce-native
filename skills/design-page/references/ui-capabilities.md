@@ -46,7 +46,19 @@ gap is the reason for generating the file.
 
 ### Dynamic text replacement
 `{KeyWord:Default}` PPC insertion is native in Classic. Relevant for ad-group message
-match; it is plain text in the element HTML, so nothing special is needed to emit it.
+match; it is plain text in the element HTML, so nothing special is needed to emit it. Note it
+personalises page **copy** only — it does not write into the lead record. Capturing a URL
+parameter *into the lead* is a hidden field plus a domain-level script.
+
+### Icons
+- **Inline SVG in a small `lp-code` element renders correctly live.** Confirmed 2026-07-28.
+  This is the supported route for icons and the sanctioned use of `lp-code`: one small element
+  per icon, never a page-shaped blob.
+- **Icon fonts from a non-Google CDN are unproven.** `settings.json` carries a
+  `webFontsExternalInUse` key that the transcriber always emits as `{}`; whether it is a real
+  hook for an external font CDN or vestigial has not been probed. Until it is, an icon font is
+  refused — use SVG. An icon *set* preference (Font Awesome, Lucide…) is a per-client
+  convention, so it belongs in the client-setup template, not here.
 
 ## What we deliberately don't touch
 
@@ -56,12 +68,24 @@ match; it is plain text in the element HTML, so nothing special is needed to emi
 | Video | Appears in the blank-template sampler but in no real export — untested code path. Use an `lp-code` embed. |
 | `<select>` / `<textarea>` form fields | No verified in-file shape. Add natively in the editor after import. |
 | Sticky header | No proven key in any export we have. Toggle it in the editor. |
+| Icon fonts from an external CDN | `webFontsExternalInUse` unprobed — see Icons above. Use inline SVG. |
+
+**A note on the form-confirmation sub-page.** A real export carries a `sub_pages/` tree — the
+form's modal confirmation — while `hasLightbox` is still `false`. So a sub-page tree does not
+by itself require the flag, and the transcriber emits exactly one sub-page (the form
+confirmation) with the flag off. That combination is proven; `hasLightbox: true` is not.
+
+**Global (account-level) lightboxes are an open question, not a refusal.** Whether a global
+dialog triggered by a custom class fires on a page built with `hasLightbox: false` has not
+been tested — it needs an account that has global lightboxes available plus a published page
+on a real domain. Until then, treat a lightbox CTA as an anchor and say so in the handover.
+Don't set the flag to find out: `true` without a lightbox tree is the render-breaker above.
 
 ## After every upload
 
 1. The page arrives **unpublished** and often in **"weighted" (A/B) routing mode** even as a
    single variant — reset traffic mode.
 2. Check a **real phone**, not just the editor's mobile preview. The editor is tolerant of
-   the three render-breakers in `format.md`; a real device is not.
+   the three render-breakers in `skills/build-page/references/format.md`; a real device is not.
 3. Add whatever was deliberately left to the editor (dropdowns, sticky header, real embed
    snippets, legal disclaimer).

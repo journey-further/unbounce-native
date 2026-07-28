@@ -18,6 +18,10 @@ Stdlib only, same as transcribe.py.
 import json, os, re, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# BP lives with the transcriber (build-page) and is single-source on purpose: a duplicated
+# grid constant that drifts hands out "legal" values the transcriber then rejects.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                "..", "..", "build-page", "scripts"))
 from transcribe import BP
 
 

@@ -112,6 +112,26 @@ assert (container["height"], item["top"], item["height"], label["height"]) == (6
 lp = {f["id"]: (f["lpType"], f["validations"]) for f in form["content"]["fields"]}
 assert lp["email"][0] == "single-line-text" and lp["email"][1]["email"] is True
 assert lp["phone"][1]["phone"] is True and lp["first_name"][1] == {"required": True}
+
+# ---- hidden form field ---------------------------------------------------------
+# Shape verified against a real export (2026-07-28): a `value`, no placeholder/show/
+# validations, in steps[] so it submits, but outside the visible field stride.
+rc, err, hout = run(GOOD.replace(
+    '<input type="tel" name="phone" placeholder="Phone" required>',
+    '<input type="tel" name="phone" placeholder="Phone" required>\n'
+    '      <input type="hidden" name="utm_source" value="ppc">'))
+assert rc == 0, f"hidden field rejected:\n{err}"
+hform = next(e for e in elements(hout)[0] if e["type"] == "lp-pom-form")
+h = next(f for f in hform["content"]["fields"] if f["lpType"] == "hidden")
+assert h == {"name": "utm_source", "id": "utm_source", "type": "hidden", "lpType": "hidden",
+             "value": "ppc", "uuid": h["uuid"]}, h
+assert h["uuid"] in hform["content"]["steps"][0]["fieldUUIDs"], "hidden field must submit"
+hps = hform["publishedStyles"]
+assert len(hps) == 10, [p["selector"] for p in hps]      # 3 visible fields x 3 + 1 hidden
+assert hps[-1] == {"selector": "#utm_source", "top": 0, "left": 0,
+                   "width": 0, "height": 0}, hps[-1]
+assert [p["top"] for p in hps[:9:3]] == [0, 80, 160]     # visible stride unshifted
+assert hform["breakpoints"]["mobile"]["publishedStyles"][-1]["selector"] == "#utm_source"
 # hide-on-mobile comes from display:none, not a data attribute
 deco = next(e for e in els if e["type"] == "lp-code")
 assert deco["breakpoints"]["mobile"]["geometry"]["visible"] is False
@@ -218,6 +238,9 @@ assert imgs[0]["content"]["asset"]["uuid"] == imgs[1]["content"]["asset"]["uuid"
 assert sum(1 for n in names if "/assets/" in n and n.endswith("a.png")) == 1, names
 
 # ---- geometry.py: snap maths + height write-back -------------------------------
+# geometry.py is design-page's; it imports BP from here, so the two move together.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                "..", "..", "design-page", "scripts"))
 import geometry as G
 assert G.nearest("left", 73, "desktop") == 70
 assert G.nearest("top", 99, "desktop") == 96

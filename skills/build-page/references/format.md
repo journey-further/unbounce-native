@@ -160,9 +160,34 @@ are fine.
   phone fields.
 - `content.steps[]`: `[{uuid, fieldUUIDs: [...]}]` — field ordering.
 - **Proven `lpType` values only:** `single-line-text` (optionally with
-  `validations.email` / `validations.phone`). `<select>` and `<textarea>` appear in
-  neither real export, so their in-file shape is unknown — the transcriber rejects them
-  and tells you to add the field natively in the editor.
+  `validations.email` / `validations.phone`) and `hidden`. `<select>` and `<textarea>` appear
+  in no real export, so their in-file shape is unknown — the transcriber rejects them and
+  tells you to add the field natively in the editor.
+- **Hidden fields** (proven 2026-07-28, purpose-built export from the Classic editor — the
+  editor's field-type dropdown offers "Hidden Field"). A *different* field shape, not a
+  variant of the visible one:
+
+  ```json
+  {"name": "utm_source", "id": "utm_source", "type": "hidden", "lpType": "hidden",
+   "value": "ppc", "uuid": "…"}
+  ```
+
+  - `type` is `"hidden"`, not `"text"`. There is **no `placeholder`, no `show`, no
+    `validations`** — a `value` instead, which is the field's default/prefilled content.
+  - It **does** appear in `content.steps[].fieldUUIDs`, so it submits like any other field.
+  - **It is laid out outside the visible field stride.** Its only `publishedStyles` entry is
+    a bare `#<id>` at `{top: 0, left: 0, width: 0, height: 0}` — no `#container_`, no input
+    item, no `#label_`. It is appended **after** all visible entries, in both the desktop and
+    mobile arrays. So it consumes no vertical space and the form's height budget counts
+    visible fields only.
+  - Evidence limit: the probed export had the hidden field **last**. A hidden field in the
+    middle of the list is untested — the transcriber therefore indexes the stride by visible
+    fields only and appends hidden entries, which reproduces the proven file exactly. If a
+    design ever needs one mid-list, re-probe rather than trusting the generalisation.
+  - Populating it from a URL parameter is a **domain-level script**, not a page-level one —
+    a client-setup convention (`templates/client-setup/CLAUDE.md`), not plugin content.
+    Unbounce's native Dynamic Text Replacement is a different mechanism: it personalises page
+    *copy* from URL params and does **not** write to the lead record.
 - The submit button is a **separate `lp-pom-button` whose `containerId` is the form**,
   referenced by `content.buttonId`. Because it is a form child, any block-level layout
   pass misses it — size it explicitly at both breakpoints or it clips.

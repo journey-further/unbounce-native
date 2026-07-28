@@ -195,6 +195,7 @@ A real `<form>` with real inputs, mapped mechanically:
 | `<input type="text">` | `lpType: single-line-text` |
 | `<input type="email">` | `+ validations.email: true` |
 | `<input type="tel">` | `+ validations.phone: true`, `validationType: "north-american"` |
+| `<input type="hidden">` | `lpType: hidden`, with `value` as the prefilled value |
 | `required` | `validations.required` |
 | `name` | field `id` |
 | `placeholder` | `placeholder` |
@@ -205,8 +206,15 @@ A real `<form>` with real inputs, mapped mechanically:
 export, so the transcriber refuses rather than guessing — add those fields natively in the
 editor after import.
 
+**Hidden fields take no vertical space.** `<input type="hidden" name="utm_source" value="">`
+ships as a real field that submits into the lead record, but it is laid out outside the 80px
+stride — so **don't budget a row for it** and don't give it a label. Put them last in the
+form, which is the shape that was actually probed. Filling one from a URL parameter is a
+domain-level script the client adds in Unbounce, not something the page file carries.
+
 **Fields stack, one per 80px row, at the form's full width.** `left` and `width` on an
-`<input>` are ignored — a two-column field layout is not expressible.
+`<input>` are ignored — a two-column field layout is not expressible. Hidden fields are the
+exception: they occupy no row at all.
 
 **Style the design form to Unbounce's real chrome or the measurement lies.** With the chrome
 the transcriber emits, Unbounce lays fields out on an **80px stride** — 12px label, 4px gap,
@@ -234,7 +242,8 @@ untracked element**: the parser reads only `<input>`s from a form, so they ship 
 break nothing.
 
 These numbers are the editor's own recomputation, confirmed by round-trip diff — see the
-`publishedStyles` derivation in `format.md`. If you change the form chrome in the
+`publishedStyles` derivation in `skills/build-page/references/format.md`. If you change the
+form chrome in the
 transcriber, both the emitted `publishedStyles` and this CSS move together.
 
 ## Fonts
@@ -248,8 +257,8 @@ reference in an inline style but don't declare renders as a fallback.
 Heights are **measured, never estimated**:
 
 ```bash
-node scripts/measure.mjs design.html desktop
-node scripts/measure.mjs design.html mobile shot-mobile.png
+node skills/design-page/scripts/measure.mjs design.html desktop
+node skills/design-page/scripts/measure.mjs design.html mobile shot-mobile.png
 ```
 
 It reports, per breakpoint: true wrapped `scrollHeight` for every text element, every

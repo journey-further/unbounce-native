@@ -25,14 +25,28 @@ Then just ask for what you want: *"build me an Unbounce landing page for …"*.
 
 ## What's in it
 
+Four skills, split where a working session naturally ends. Each one runs from its own
+`SKILL.md` with no memory of the others — the files on disk are the handover.
+
 | | |
 |---|---|
-| `skills/design-page/` | the skill: how to design for the platform, plus the reference docs |
-| `skills/design-page/scripts/transcribe.py` | design HTML → `.unbounce`. **Python stdlib only** |
+| `skills/design-page/` | brand → layout → measure loop → mobile → sign-off. Produces a measured `design.html` |
+| `skills/build-page/` | `design.html` → `out.unbounce`. Mechanical, stdlib-only, offline |
+| `skills/upload-page/` | `.unbounce` → an unpublished page in the account, verified. **Needs the Unbounce MCP** |
+| `skills/edit-page/` | update a live page in place. **Not yet available** — see the file for what to do instead |
+
+| | |
+|---|---|
+| `skills/build-page/scripts/transcribe.py` | design HTML → `.unbounce`. **Python stdlib only** |
 | `skills/design-page/scripts/measure.mjs` | real-browser text heights, image sizes, overflow flags |
+| `skills/design-page/scripts/geometry.py` | legal snap tables, nearest-legal value, measured-height write-back |
 | `agents/brand-extract.md` | brand input (URL / `DESIGN.md` / screenshot / PDF) → tokens |
 | `agents/mobile-derive.md` | desktop layout → mobile overrides + a decision report |
 | `agents/build-pack.md` | design HTML → verified `.unbounce` archive |
+
+Design and build need no credentials and no network beyond design-time measurement. Uploading
+and editing need the Unbounce MCP; without it those skills' tools are simply absent and the
+rest is unaffected.
 
 ## Requirements
 
@@ -65,5 +79,5 @@ a real phone. The plugin refuses instead.
 ## Tests
 
 ```bash
-python3 skills/design-page/scripts/test_transcribe.py
+python3 skills/build-page/scripts/test_transcribe.py
 ```

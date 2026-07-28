@@ -33,6 +33,9 @@ INPUT_LPTYPE = {
     "text":  ("single-line-text", {}),
     "email": ("single-line-text", {"email": True}),
     "tel":   ("single-line-text", {"phone": True}),
+    # hidden carries a different field shape (a `value`, no placeholder/show/validations) and
+    # sits outside the visible field stride — see form() and format.md.
+    "hidden": ("hidden", {}),
 }
 
 
@@ -412,6 +415,13 @@ class Build:
             lptype, val = INPUT_LPTYPE[itype]
             u = str(uuid.uuid4())
             uuids.append(u)
+            if itype == "hidden":
+                # Verified shape (real export, 2026-07-28): no placeholder, no show, no
+                # validations; a `value` instead. It joins steps[].fieldUUIDs like any field.
+                out.append({"name": f.get("data-label") or f.get("name") or f.get("id"),
+                            "id": f.get("name") or f.get("id"), "type": "hidden",
+                            "lpType": "hidden", "value": f.get("value", ""), "uuid": u})
+                continue
             fd = {"name": f.get("data-label") or f.get("placeholder") or f.get("name", "Field"),
                   "id": f.get("name") or f.get("id"), "placeholder": f.get("placeholder", ""),
                   "type": "text", "lpType": lptype,
@@ -429,12 +439,20 @@ class Build:
         input_top = label_h + label_gap
         container_h = input_top + input_h
         stride = container_h + field_gap
-        pub = lambda w: [s for i, f in enumerate(out) for s in (
+        # Hidden fields take no stride slot and no container/input/label triple — just one
+        # zero-size `#<id>` rule, appended after the visible ones (verified: real export
+        # 2026-07-28, hidden field last). So the form's height budget is visible fields only.
+        vis = [f for f in out if f["lpType"] != "hidden"]
+        hid = [f for f in out if f["lpType"] == "hidden"]
+        pub = lambda w: [s for i, f in enumerate(vis) for s in (
             {"selector": f"#container_{f['id']}", "top": i * stride, "left": 0, "width": w,
              "height": container_h},
             {"selector": f".lp-pom-form-field .ub-input-item.single.form_elem_{f['id']}",
              "top": input_top, "left": 0, "width": w, "height": input_h},
-            {"selector": f"#label_{f['id']}", "top": 0, "left": 0, "width": w, "height": label_h})]
+            {"selector": f"#label_{f['id']}", "top": 0, "left": 0, "width": w,
+             "height": label_h})] + [
+            {"selector": f"#{f['id']}", "top": 0, "left": 0, "width": 0, "height": 0}
+            for f in hid]
         submit_id = self.nid("pom-button")
         self.add({
             "name": g["name"], "id": fid, "type": "lp-pom-form", "containerId": container,
@@ -859,7 +877,7 @@ def transcribe(html_path, out_path, page_name, company_id):
                 t = (f.get("type") or "text").lower()
                 if t not in INPUT_LPTYPE:
                     errors.append(f"#{node['id']}: <input type=\"{t}\"> has no verified "
-                                  f"lpType — use text/email/tel, or add it in the editor")
+                                  f"lpType — use text/email/tel/hidden, or add it in the editor")
             eid = b.form(g, container, z[0],
                          [f for f in node["fields"]
                           if (f.get("type") or "text").lower() in INPUT_LPTYPE],

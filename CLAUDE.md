@@ -1,7 +1,8 @@
 # unbounce-native — repo notes
 
 A Claude Code plugin that builds natively-editable Unbounce landing pages. See `README.md`
-for what it is and `skills/design-page/SKILL.md` for how it works.
+for what it is; the four skills under `skills/` are how it works —
+`design-page` → `build-page` → `upload-page`, plus `edit-page`.
 
 ## Working in here
 
@@ -12,11 +13,13 @@ for what it is and `skills/design-page/SKILL.md` for how it works.
   the design source, the earlier generator, both real Unbounce exports, and the long-form
   format notes. It is gitignored on purpose: it's the evidence base, not the deliverable.
   Read it freely; never move anything from it into a tracked path.
-- The reference docs under `skills/design-page/references/` are the persistence layer. If
-  you learn a platform fact, it goes there or it's lost — that's what makes a cold-start
-  session possible.
-- Run `python3 skills/design-page/scripts/test_transcribe.py` after touching the
-  transcriber.
+- The reference docs under `skills/*/references/` are the persistence layer. If you learn a
+  platform fact, it goes there **in the same commit** or it's lost — that's what makes a
+  cold-start session possible.
+- Run `python3 skills/build-page/scripts/test_transcribe.py` after touching the transcriber.
+  Note `design-page`'s `geometry.py` imports `BP` from the transcriber, so the grid constants
+  stay single-source across the two skills — that import is deliberate, don't break it by
+  duplicating the constant.
 
 ## The two rules that shape every decision
 
@@ -33,7 +36,24 @@ Video, lightboxes, `<select>` and `<textarea>` have no verified in-file shape. E
 guess produces a page that looks right in the editor and is broken live — the worst possible
 failure mode, because it passes review. Before adding any capability, probe: generate a
 varied page, upload it, **download it again**, diff. That's how every non-obvious fact in
-`references/format.md` was found.
+`skills/build-page/references/format.md` was found.
+
+## Standing constraints
+
+- **Two states, no middle.** *Baseline* is create-only and needs no credentials and no network
+  beyond design-time measurement (`design-page`, `build-page`). *Connected* adds the Unbounce
+  MCP and, with it, `upload-page` and `edit-page`. See `docs/adr/0001-external-mcp-not-vendored.md`.
+- **Connected capability arrives only as whole skills.** No skill contains an "am I connected?"
+  branch — a skill either needs the MCP tools to function or never touches them. When the MCP
+  isn't there, its tools are simply absent and baseline is unaffected.
+  `docs/adr/0002-four-skills-split-at-session-boundaries.md`.
+- **The MCP never publishes.** Every upload is `publish: false`. The client reviews in the UI
+  and publishes there — it's their domain and their call.
+- **Scope is page construction and correctness.** Stats, insights, leads, A/B analysis and
+  add-on design tooling are per-client enhancements built elsewhere; they never ship from this
+  repo.
+- **Per-client conventions live in `templates/client-setup/`**, copied per brand into the
+  client's own repo — never filled in here.
 
 ## Status
 
@@ -42,3 +62,20 @@ with validators + tests, measure script, three agents. **Not yet proven end-to-e
 done when the reference page has been rebuilt from a cold start (fresh context, design brief
 + brand tokens only) and the resulting `.unbounce` imports, renders correctly on a real
 phone, and the client can drag a whole card as one unit.
+
+v2 in progress (`SPEC-v2.md` is the executable plan, `PLAN-v2.md` the decisions).
+
+Done: WP1 the four-skill split · WP3 the client-setup template and these constraints ·
+WP2 P1 **hidden fields are supported** (shape proven from a purpose-built export, emitted and
+tested) · WP2 P5 half — inline SVG icons render live.
+
+Outstanding: WP4 the element tool pair in the fork
+(`github.com/journey-further/unbounce-mcp`, forked 2026-07-28, no PR opened yet) · WP5 mutate
+probes and a working `edit-page` · WP6 merge and cold-start acceptance.
+
+**Blocked on the client, not on us** (2026-07-28): anything needing a published page or a real
+device. The client has no domain set up, so P2 (global lightbox — also no admin access to
+define one), real-phone render verification, and the v1 "renders correctly on a real phone"
+acceptance criterion all wait for that. Don't plan work that assumes a publish; don't ask for
+a phone check. Mobile verification is a 320px viewport on a preview URL until the domain
+exists.
