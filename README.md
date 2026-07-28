@@ -65,9 +65,19 @@ npm install
 That command also downloads Chromium. If you do not know where the plugin directory is, ask
 Claude to find it and run the command for you.
 
-After that, ask for what you want in plain words. For example: *"build me an Unbounce landing
-page for a roof replacement offer"*. The skills activate on their own. You do not call them by
-name.
+After that, start with a slash command:
+
+```
+/design-page
+```
+
+**Use the commands.** They are the reliable route, and there are four of them, one for each
+step. See [Use it](#use-it) for the full set.
+
+Plain words also work, but only if you say the word "Unbounce". Ask for *"a landing page for a
+roof replacement offer"* and Claude may just write you an HTML file. Ask for *"an **Unbounce**
+landing page for a roof replacement offer"* and the right skill activates. The command removes
+that guesswork, which is why it is the route to teach.
 
 ## Connect an Unbounce account (optional)
 
@@ -83,22 +93,13 @@ Unbounce under **Settings → API keys**. The key goes to your operating system 
 never goes into this repo. Leave the field empty and everything except the connected skills
 still works.
 
-The plugin carries the MCP server itself. The file `.mcp.json` points at
-[`journey-further/unbounce-mcp`](https://github.com/journey-further/unbounce-mcp), a fork of
-[`cgilchrist/unbounce-mcp`](https://github.com/cgilchrist/unbounce-mcp). The fork adds the
-`get_variant_elements` and `set_variant_elements` pair that a native page needs. The plugin
-pins the fork to a tag, so an upgrade is a deliberate edit rather than whatever `npx` resolves
-on the day.
-
-Three things to know about the connected state:
+Two things to know about the connected state:
 
 1. **The first use in a session opens a browser window for an Unbounce login.** The API key
    alone does not cover the editor endpoints, so the server keeps a session in
    `~/.unbounce-mcp/session.json`. This step is interactive and nobody can automate it away.
    Expect single sign-on or two-factor authentication here.
-2. **Remove any copy of this MCP that you added by hand.** If you ran `claude mcp add unbounce
-   …` before, remove it. Otherwise every tool appears twice under two names.
-3. **The plugin never publishes.** Every upload sets `publish: false`. You review the page in
+2. **The plugin never publishes.** Every upload sets `publish: false`. You review the page in
    the Unbounce UI and publish there. It is your domain and your decision.
 
 Changes to `.mcp.json` or `plugin.json` need `/reload-plugins` or a restart of Claude Code.
@@ -195,9 +196,28 @@ The work splits into four skills. Each one starts where a working session natura
 one reads its own `SKILL.md` and remembers nothing about the others. The files on disk are the
 handover, so you can stop after any step and continue tomorrow or in a fresh session.
 
+| Step | Command | What it needs from you |
+|---|---|---|
+| 1. Design | `/design-page` | The brief, and the brand input. |
+| 2. Build | `/build-page` | The design folder, and the page name. |
+| 3. Upload | `/upload-page` | The `.unbounce` file. Needs a connected account. |
+| 4. Edit | `/edit-page` | Not available yet. The command explains what to do instead. |
+
+Type `/` in Claude Code to pick from the list rather than typing a name in full. Each command
+also answers to its long form, such as `/unbounce-native:build-page`. Use the long form if
+another plugin gives you a name clash.
+
+Run one command for each step. Do not expect step 2 to follow step 1 on its own, and do not
+want it to. Each boundary is a decision point. You sign off the design before you build it, and
+you check the file before it goes anywhere near the account.
+
 ### 1. Design the page
 
-Ask for the page. Claude reads the brand tokens, reads the geometry spec, and writes a design
+```
+/design-page
+```
+
+Claude reads the brand tokens, reads the geometry spec, and writes a design
 HTML file straight to the Unbounce grid. It then measures the real text heights in a browser
 and writes them back, and it repeats that loop until the numbers stop moving. A second agent
 derives the mobile breakpoint and reports the decisions it made, such as *"hid the header phone
@@ -216,21 +236,31 @@ special case.
 
 ### 2. Build the file
 
-```bash
-python3 skills/build-page/scripts/transcribe.py design.html out.unbounce --page-name "My Page"
+```
+/build-page
 ```
 
-This step is mechanical. It reads the design file and writes the `.unbounce` archive. It uses
-the Python standard library only, and it touches no network.
+Tell the skill which design folder to use, and what to name the page. The name matters here.
+The page name inside the file wins over the name given at upload, so this is the only place to
+set it.
+
+This step is mechanical. The skill reads the design file and writes the `.unbounce` archive. It
+uses the Python standard library only, and it touches no network. You do not run the transcriber
+yourself, and you do not need Python knowledge to use this step.
 
 It also **refuses rather than repairs**. Geometry that sits off the grid or off the canvas is
 an error in the design, and the transcriber reports it and writes nothing. That refusal is the
 point. The moment the build step starts to correct the design, the design file stops being an
 honest preview of the result.
 
-Because it writes nothing on error, you can also use it as a free validator at design time.
+Because the transcriber writes nothing on error, the design step uses it as a free validator
+before sign-off.
 
 ### 3. Upload the file
+
+```
+/upload-page
+```
 
 This step needs the connected state. Claude uploads the file as an **unpublished** page, sets
 the traffic mode, takes a full-page screenshot of the real render, walks that screenshot
@@ -242,6 +272,10 @@ preview URL to open at a 320px viewport. A real phone is better.
 You publish, in the Unbounce UI, when you are happy.
 
 ### 4. Edit a live page
+
+```
+/edit-page
+```
 
 **This is not available yet.** The two tools it needs exist in the forked MCP, but nobody has
 yet written an element array back to a live page and read it again to confirm what survived. A
@@ -262,6 +296,7 @@ integrations. Plan for that.
 | `skills/build-page/` | Turns `design.html` into `out.unbounce`. Mechanical, standard library only, offline. |
 | `skills/upload-page/` | Puts a `.unbounce` file into the account as an unpublished page, and verifies it. Needs the Unbounce MCP. |
 | `skills/edit-page/` | Updates a live page in place. **Not available yet.** Read the file for what to do instead. |
+| `commands/` | The four slash commands. Each one is a thin wrapper that invokes the matching skill. |
 
 ### Scripts and agents
 
@@ -366,6 +401,8 @@ grouping works, and boxes nest to any depth.
 Run `/reload-plugins`, or restart Claude Code.
 
 ## Tests
+
+This section is for people who change the plugin, not for people who use it.
 
 ```bash
 python3 skills/build-page/scripts/test_transcribe.py
