@@ -43,6 +43,7 @@ Four skills, split where a working session naturally ends. Each one runs from it
 | `agents/brand-extract.md` | brand input (URL / `DESIGN.md` / screenshot / PDF) → tokens |
 | `agents/mobile-derive.md` | desktop layout → mobile overrides + a decision report |
 | `agents/build-pack.md` | design HTML → verified `.unbounce` archive |
+| `scripts/guard-native-page.py` | `PreToolUse` hook — stops the two MCP tools that flatten a native page |
 
 Design and build need no credentials and no network beyond design-time measurement. Uploading
 and editing need the Unbounce MCP; without it those skills' tools are simply absent and the

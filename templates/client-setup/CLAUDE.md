@@ -103,6 +103,36 @@
   a phone number that must appear in the header. Anything the client will notice is missing.
 -->
 
+## Lock out the two page-flattening tools
+
+<!--
+  Nothing to fill in — copy this block into THIS repo's `.claude/settings.json` and commit it.
+
+  The plugin already ships a PreToolUse hook that escalates `deploy_page` and `edit_variant`
+  to a human, because both are legitimate on an MCP-managed HTML/CSS page. In a repo that
+  only ever holds native pages there is no such legitimate case, so deny them outright and
+  remove the judgement call. Belt and braces: the hook travels with the plugin, this travels
+  with the repo, and either alone is enough.
+
+  Adjust the tool names to match how the MCP is installed. The plugin-bundled server is
+  `mcp__plugin_unbounce-native_unbounce__*`; a hand-added one (`claude mcp add unbounce …`)
+  is `mcp__unbounce__*`. A rule written against the wrong prefix silently never fires, so
+  keep both unless you are certain which one is in play.
+-->
+
+```json
+{
+  "permissions": {
+    "deny": [
+      "mcp__unbounce__deploy_page",
+      "mcp__unbounce__edit_variant",
+      "mcp__plugin_unbounce-native_unbounce__deploy_page",
+      "mcp__plugin_unbounce-native_unbounce__edit_variant"
+    ]
+  }
+}
+```
+
 ## Post-upload checklist for this brand
 
 <!--

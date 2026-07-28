@@ -85,6 +85,12 @@ Publishing is the client's move, in the UI.
 
 Editing a page in place is `edit-page`'s job, through element-level tools.
 
+**A hook enforces this**, so the table above is not the only thing standing in the way:
+`hooks/hooks.json` matches either tool under any MCP server name and escalates the call to
+the user with the reason. It escalates rather than refuses, because both tools are correct on
+an *MCP-managed* HTML/CSS page and the tool input alone doesn't reveal which kind of page is
+being targeted. If you see that prompt on a page this plugin built, the answer is no.
+
 ## Rules
 
 1. **Never publish.** Every upload is `publish: false`; the client reviews in the UI and

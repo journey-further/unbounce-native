@@ -54,6 +54,16 @@ varied page, upload it, **download it again**, diff. That's how every non-obviou
   repo.
 - **Per-client conventions live in `templates/client-setup/`**, copied per brand into the
   client's own repo — never filled in here.
+- **The two page-flattening tools are guarded, not just documented.**
+  `hooks/hooks.json` + `scripts/guard-native-page.py` escalate `deploy_page` and
+  `edit_variant` to the user. Matched by tool-name suffix (`mcp__.*__(deploy_page|edit_variant)`)
+  so it fires under any server name — a plugin-bundled MCP scopes its tools as
+  `mcp__plugin_<plugin>_<server>__<tool>`, and a matcher written against the bare server key
+  never fires. It escalates rather than denies because both tools are correct on an
+  MCP-managed HTML/CSS page. `permissions.deny` cannot do this job from here: a plugin's own
+  `settings.json` honours only the `agent` and `subagentStatusLine` keys, and this repo's
+  `.claude/` is gitignored. A deny list belongs in the *client's* repo — it's in the
+  client-setup template.
 
 ## Status
 
