@@ -77,14 +77,32 @@ defaults, not limits. We write the table above onto every section instead.
   375` is **ignored** — content beyond 320 renders but anchors left and the editor throws
   "out of bounds" warnings. This is the one dimension where the file cannot exceed the UI.
 
+## We ship `snapToGrid: false`, with the grid still visible
+
+Every generated section sets `snapToGrid: false` (`build-page/scripts/transcribe.py`, the
+`grid` lambda in `block()`); `showGrid` stays `true`. The client sees the reference lines
+and is not dragged onto them.
+
+The reason is the no-centre-anchor fact above. Centred elements are the worst case: a
+276-wide card centred in 1140 content sits at `left 502`, off-grid on *both* edges, so it
+jumps the moment the client clicks it — and centring is exactly what the design does most.
+Since element-to-element guides (including the centre guides that do the real work) survive
+with snap off, nothing is lost. A client who wants snap back toggles it per section in the
+UI.
+
+**This does not relax the design side.** Alignment is still designed *to* the grid — snap-off
+only removes after-the-fact correction. The validator checks below stay exactly as graded.
+
 ## What the validator enforces, and why it is graded
 
 Snapping is latent damage: an off-grid element is never *wrong* in the file, it only jumps
-if and when the client clicks it. So conformance is graded by consequence.
+if and when the client clicks it. With snap off by default that jump is dormant rather than
+gone — one UI toggle, or one section built outside this pipeline, wakes it. So conformance
+is still graded by consequence, and the grades do not change.
 
 | | Check | Level |
 |---|---|---|
-| **`left` / `top`** | on a column/row snap point at **both** breakpoints | **error** — this is what prevents click-jump |
+| **`left` / `top`** | on a column/row snap point at **both** breakpoints | **error** — keeps click-jump impossible if snap is ever turned back on |
 | **`width`** | a whole span (`pitch·n − 12`) | **warning** — legal, sometimes deliberate, usually a design smell at 24 columns |
 | **`height`** | — | **no check** — measured content height must win |
 | **right edge** | `left + width ≤ canvas` at both breakpoints | **error** — catches double-counted nesting offsets and the mobile 320 cap |

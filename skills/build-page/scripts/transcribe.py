@@ -291,7 +291,12 @@ class Build:
         eid = self.nid("pom-block")
         grid = lambda b: {"columns": b["cols"], "rowHeight": b["rh"], "xGap": 12, "yGap": 0,
                           "padding": {"top": 0, "right": b["pad"], "bottom": 0, "left": b["pad"]},
-                          "snapToGrid": True}
+                          # Snap off: each edge snaps independently (no centre anchor), so
+                          # centred elements jump when clicked. Element-to-element alignment
+                          # guides survive snapToGrid:false, and showGrid stays on — the
+                          # client sees the grid, isn't dragged onto it. Re-enable per
+                          # section in the UI if wanted. See design-page/references/grid.md.
+                          "snapToGrid": False}
         return self.add({
             "name": name, "id": eid, "type": "lp-pom-block", "containerId": "lp-pom-root",
             "style": {"background": {"backgroundColor": bg, "opacity": 100},

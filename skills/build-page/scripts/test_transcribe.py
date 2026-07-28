@@ -92,6 +92,14 @@ assert kinds.count("lp-pom-button") == 2, kinds          # cta + submit
 assert kinds.count("lp-stylesheet") == 1
 
 by_id = {e["id"]: e for e in els}
+# grid visible, snap off — centred elements have no centre anchor, so snap makes them
+# jump on click. Both breakpoints. See design-page/references/grid.md.
+root = next(e for e in els if e["type"] == "lp-pom-root")
+block = next(e for e in els if e["type"] == "lp-pom-block")
+assert root["grid"]["showGrid"] is True
+assert block["grid"]["snapToGrid"] is False
+assert block["breakpoints"]["mobile"]["grid"]["snapToGrid"] is False
+
 form = next(e for e in els if e["type"] == "lp-pom-form")
 card = next(e for e in els if e["type"] == "lp-pom-box")
 # nesting: DOM tree IS the containerId tree, offsets stay parent-relative
