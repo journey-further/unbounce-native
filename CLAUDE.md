@@ -81,12 +81,17 @@ tested) · **WP2 P5 closed** (2026-07-29) — inline SVG icons render live, and 
 fonts: a stylesheet `<link>` in one `lp-code` is document-global, covering icon fonts *and*
 non-Google faces on native text. `webFontsExternalInUse` is the editor's custom-font record,
 not our hook; it stays `{}`. See `ui-capabilities.md` → *External fonts* · WP4 the element
-tool pair and the plugin wiring.
+tool pair and the plugin wiring · **WP5 closed** (2026-07-29) — the end-to-end edit-page run
+passed against the live $2,500 page (fresh read → one-string patch → write → diff exact →
+screenshot healthy → restore verified), and the editor-save probe passed the same day: a
+human edit in the UI touched **only the edited element** across 161; the editor backfills
+`content.fonts` on the element it re-serialises and adds a trailing `;` to inline styles —
+expected noise when diffing across a client edit, never something to "correct" back. See
+`skills/edit-page/SKILL.md`.
 
-Outstanding: WP5's last probe — an *editor* save (human, in the UI) re-read and diffed, to
-prove a client edit doesn't clobber what we write; everything else in WP5 is done, including
-`diff_elements.py` (verified against real probe data both strict and `--import`) · WP6 merge
-and cold-start acceptance.
+Outstanding: WP2 P2 Phase A (stakeholder confirmation of the Script Manager route — desk
+work) · WP6 merge and cold-start acceptance. WP2 P2 Phase C and real-phone checks stay
+blocked on the client's domain.
 
 ### WP5 probes, 2026-07-29 — P3 passed; P4 failed, then root-caused the same day
 

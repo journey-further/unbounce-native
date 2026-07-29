@@ -1,11 +1,18 @@
 ---
 name: edit-page
-description: Update an existing native Unbounce page in place — keeping its id, URL, stats, leads and integrations — by patching its element array. Requires the Unbounce MCP tools. Use when asked to change, fix, tweak or update copy, an image or geometry on a page that already exists in Unbounce, rather than rebuilding and re-uploading it. The tool pair is proven live (2026-07-29) but this skill's verification loop is not yet built — read this file fully before any write; a wrong-typed field value blanks the whole page.
+description: Update an existing native Unbounce page in place — keeping its id, URL, stats, leads and integrations — by patching its element array. Requires the Unbounce MCP tools. Use when asked to change, fix, tweak or update copy, an image or geometry on a page that already exists in Unbounce, rather than rebuilding and re-uploading it. The full loop (read → patch → write → diff → screenshot) is proven end to end against a live page (2026-07-29) — read this file fully before any write; a wrong-typed field value blanks the whole page.
 ---
 
 # Edit a live page in place
 
-## Status: the tool pair works. The P4 failure was a malformed patch, not the tool.
+## Status: proven end to end (2026-07-29)
+
+The whole flow below ran against the live $2,500 page (161 elements): fresh read → one-string
+patch → write → re-read diffed exactly the patch → screenshot healthy at both breakpoints →
+original array restored and verified the same way. The editor-save probe passed the same day
+(see below). WP5 is closed.
+
+## The tool pair works. The P4 failure was a malformed patch, not the tool.
 
 The two element-level tools this skill needs — `get_variant_elements` and
 `set_variant_elements` — exist in the forked MCP (WP4) and the plugin pins them. **Both
@@ -99,6 +106,20 @@ Both live in `journey-further/unbounce-mcp`, pinned by tag in the plugin's `.mcp
 later hand out a colliding id. The save rebuilds the whole variant record, not just `elements` —
 verified consequence today: only the `autoscale` wart above; everything else round-trips
 unchanged.
+
+## What an editor save does to our elements (P4 second half, answered 2026-07-29)
+
+A human edited one text element in the UI (hero headline copy change) and saved. Re-read and
+diffed against the pre-edit read, across a real 161-element page:
+
+- **Only the edited element changed.** The other 160 — geometry, custom classes, `lp-code`
+  icons, the stylesheet, asset references — came back byte-identical. A client edit does not
+  clobber what we write; the fresh-read-every-session rule is sufficient protection.
+- **Two normalisations on the edited element, both noise:** the editor backfills
+  `content.fonts` with the fonts actually in use (`[]` → `["Oswald"]` — the transcriber's
+  empty array is fine, the editor maintains this record itself), and its serialiser adds a
+  trailing `;` to inline `style` attributes. Expect both when diffing across a human edit;
+  never patch them back.
 
 ## What import does to a page (P3, answered 2026-07-29)
 

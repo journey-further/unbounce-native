@@ -1,9 +1,9 @@
 # SPEC-v2 — implementation spec
 
 Status: **in execution** (done-markers added 2026-07-29). Done: WP1 · WP2 P1 + P5 · WP3 ·
-WP4 · WP5's probes (P3, P4 — write path proven live). Outstanding: **WP2 P2** (rewritten
-below — the "global lightbox" premise fell on 2026-07-29), **WP5's final end-to-end run**,
-**WP6**. WP7 waits on WP5. Scope and decisions live in `PLAN-v2.md` (agreed
+WP4 · **WP5 in full** (probes P3 + P4 including the editor save, and the end-to-end run —
+all closed 2026-07-29). Outstanding: **WP2 P2** (rewritten below — the "global lightbox"
+premise fell on 2026-07-29), **WP6**. WP7 is unblocked but not handover-blocking. Scope and decisions live in `PLAN-v2.md` (agreed
 2026-07-28); shape decisions in `docs/adr/0001` (MCP fork) and `docs/adr/0002` (skill
 split). This file is the executable version: what to change, where, and how to know it
 worked. Written for an implementing agent starting cold.
@@ -316,17 +316,21 @@ Done when: on a throwaway page (prefixed name, deleted after), `get_variant_elem
 equal array, and a fresh `claude` session in a clean checkout sees the tools with no manual
 `claude mcp add`.
 
-## WP5 · Mutate probes + `edit-page` (Phase 2 · P3, P4, D3) — probes ✅ · one run left
+## WP5 · Mutate probes + `edit-page` (Phase 2 · P3, P4, D3) — ✅ done
 
-**Status 2026-07-29: P4 ✅ and P3 ✅ — the write path is proven live.** P4's first run
-blanked a page; the root cause was our malformed patch (`customClassnames` written as an
-array; the field is a string), not the fork — the bisect, the recovery and the fork's one
-wart are written up in `skills/edit-page/SKILL.md`. P3: import rewrites only
-`content.asset.{uuid,content_url,unique_url}` (plus a numeric `content.asset.id` added);
-element ids, geometry and timestamps survive — D3 confirmed, keep bundling.
-`diff_elements.py` is written and wired into both connected skills' docs. **What closes
-this WP:** one edit-page run end to end against a live page (fresh read → patch → write →
-diff → screenshot) exercising the loop as a whole.
+**Closed 2026-07-29.** P4's first run blanked a page; the root cause was our malformed patch
+(`customClassnames` written as an array; the field is a string), not the fork — the bisect,
+the recovery and the fork's one wart are written up in `skills/edit-page/SKILL.md`. P3:
+import rewrites only `content.asset.{uuid,content_url,unique_url}` (plus a numeric
+`content.asset.id` added); element ids, geometry and timestamps survive — D3 confirmed, keep
+bundling. `diff_elements.py` is written and wired into both connected skills' docs. **The
+closing run passed the same day:** the full edit-page loop end to end against the live
+$2,500 page (fresh read → one-string patch → write → diff exact → screenshot healthy at both
+breakpoints → original restored and verified). P4's editor-save half also passed: a human
+edit in the UI changed **only the edited element** across 161 — the editor backfills
+`content.fonts` on the element it re-serialises and adds trailing `;` to inline styles,
+both expected noise when diffing across a client edit (recorded in
+`skills/edit-page/SKILL.md`).
 
 **The rule P4 added, binding on every write in this WP and after it:** an elements diff is
 necessary but **never sufficient** — P4's blank page round-tripped byte-identically and
