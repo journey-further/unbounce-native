@@ -32,7 +32,8 @@ for what it is; the four skills under `skills/` are how it works —
 
 ## Unproven means refuse, not guess
 
-Video, lightboxes, `<select>` and `<textarea>` have no verified in-file shape. Emitting a
+Video and lightboxes remain unproven; all six form field types are proven and supported
+(2026-07-29 two-probe fit, `skills/build-page/references/format.md` → Forms). Emitting a
 guess produces a page that looks right in the editor and is broken live — the worst possible
 failure mode, because it passes review. Before adding any capability, probe: generate a
 varied page, upload it, **download it again**, diff. That's how every non-obvious fact in

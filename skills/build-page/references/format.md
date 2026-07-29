@@ -174,10 +174,64 @@ are fine.
   validations: {required, email, phone}, uuid}`, plus `validationType: "north-american"` on
   phone fields.
 - `content.steps[]`: `[{uuid, fieldUUIDs: [...]}]` — field ordering.
-- **Proven `lpType` values only:** `single-line-text` (optionally with
-  `validations.email` / `validations.phone`) and `hidden`. `<select>` and `<textarea>` appear
-  in no real export, so their in-file shape is unknown — the transcriber rejects them and
-  tells you to add the field natively in the editor.
+- **All six editor field types probed live 2026-07-29** (a form with one of each, saved
+  from the editor, read back via `get_variant_elements` — evidence in
+  `ridgeline/field-types-probe-2026-07-29.json`). The in-file shapes:
+
+  | Editor type | `type` | `lpType` | shape notes |
+  |---|---|---|---|
+  | Short Text | `text` | `single-line-text` | as above |
+  | Long Text | `textarea` | `multi-line-text` | + `heightUnits: "lines"`, `numberOfLines`, `pixelHeight`; **no `placeholder`** |
+  | Checkbox | `checkbox` | `checkbox-group` | `options: [{value, label}]`; no placeholder/show |
+  | Radio | `radio` | `radio-group` | `options: [{value, label}]`; no placeholder/show |
+  | Dropdown | **`text`** (yes) | `drop-down` | `selectOptions: ["…"]` **plain strings** (value == label — no split), `invalidOptions: []`; no placeholder/show |
+  | Hidden | `hidden` | `hidden` | as below |
+
+- **All six types are emitted.** `drop-down` costs nothing beyond the field dict: its
+  derived `publishedStyles` triple is byte-identical to a single-line field's (same three
+  selectors, including `.ub-input-item.single.form_elem_<id>`, same heights). The other
+  two shapes carry their own derived geometry, **fitted from two editor observations**
+  (2026-07-29: the defaults probe above, then the same form re-saved at label 11 / field
+  44 / border 2 / font 13 / cbxlabel 16 / 6 lines / 2 checkbox options —
+  `ridgeline/field-types-probe2-2026-07-29.json`). Every formula reproduces both
+  observations exactly:
+
+  ```
+  # multi-line-text (selectors as single-line) — Unbounce's own publisher formula
+  line height     = round(1.2 * field fontSize)
+  input item h    = line height * numberOfLines + (field height - fontSize) + 2 * border
+  container h     = input top + item h + 4      # the +4 is real; single-line is exact
+  # pixelHeight in the field dict is INERT while heightUnits == "lines" (the publisher
+  # ternary skips it); the editor authors it at 20px/line, so we emit 20 * lines.
+
+  # checkbox-group / radio-group
+  option row h    = max(17, round(1.16 * cbxlabel size))  # 1.16 from publisher source;
+                                                          # 17 floor = the glyph row
+  option stride   = option row h + 6                      # #ub-option-<id>-item-<k> tops
+  group h         = n options * option stride             # .ub-input-item#group_<id>, top = input top
+  container h     = input top + group h                   # exact, no +4
+  ```
+
+  **Provenance — these are not curve fits.** The textarea formula and the 1.16 option
+  line-height are read from Unbounce's own `publisher.bundle.js` (v6.24.321, the script
+  the preview/publish pipeline loads; grep `pixelHeight` and `checkboxFont`). They
+  reproduce all three observations (the two editor probes above, plus a third styling —
+  Open Sans, font 14, field 44 — where a naive `pixelHeight + 11` fit missed by 9px and
+  the publisher formula was exact). **Final verification:** a transcriber-emitted page
+  was opened, nudged and saved in the editor, and the editor's recomputed
+  `publishedStyles` came back **byte-identical** to ours at both breakpoints
+  (`ridgeline/field-types-probe3-editor-save-2026-07-29.json`). Font *family* never
+  enters any formula — only sizes do. The 17px option-row floor is observed (twice),
+  not sourced; if `cbxlabel` ever goes below ~15px in a new chrome, it's already covered,
+  but a redesigned glyph row would need one re-probe. The publisher also has a
+  border quirk on single-line fields — `borderOffset = 2*width || 1`, so a **0-width
+  border still adds 1px** — our chrome always uses ≥1px, but don't emit border 0.
+  Mobile derived styles carry the **same tops and heights** as desktop (all probes) —
+  only widths differ per breakpoint.
+- `style.cbxlabel` (a font block for checkbox/radio option labels) is confirmed present
+  in editor-authored forms; we already emit it, and the option-row formula reads its size.
+- Current editor saves write `validations.custom: ""` on text/textarea fields (probe) —
+  our emission without it round-trips fine; don't start emitting it.
 - **Hidden fields** (proven 2026-07-28, purpose-built export from the Classic editor — the
   editor's field-type dropdown offers "Hidden Field"). A *different* field shape, not a
   variant of the visible one:

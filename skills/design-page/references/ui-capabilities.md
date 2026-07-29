@@ -103,7 +103,6 @@ them picked up natively, that is a probe, not a guess.
 |---|---|
 | Lightbox | `hasLightbox: true` with no lightbox data collapses the **live** mobile layout to desktop. Supporting it means generating sub-page trees *and* getting the flag right. Use an anchor or a second page. |
 | Video | Appears in the blank-template sampler but in no real export — untested code path. Use an `lp-code` embed. |
-| `<select>` / `<textarea>` form fields | No verified in-file shape. Add natively in the editor after import. |
 | Sticky header | No proven key in any export we have. Toggle it in the editor. |
 | Editor-registered custom fonts (`webFontsExternalInUse`) | In-file shape unproven, and an account-admin action to set up. The `lp-code` `<link>` route needs none of it — see *External fonts* above. |
 
