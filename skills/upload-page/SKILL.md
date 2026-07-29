@@ -57,6 +57,12 @@ variant_id = "a")`.
 looks.
 
 - `get_page_variants(page_id)` → confirm the variant letters and weights are what you expect.
+- **Elements round-trip** (when the element tools are available): `get_variant_elements` with
+  an `output_file_path`, then
+  `skills/edit-page/scripts/diff_elements.py --import <elements.json from the .unbounce> <downloaded.json>`.
+  Clean exit means Unbounce stored exactly what was built — `--import` ignores the four
+  `content.asset.*` keys import legitimately rewrites, and nothing else. (Named cross-skill
+  exception, like build-page's `measure.mjs`: shared verification, not operating knowledge.)
 - `screenshot_variant(page_id, variant, source = "preview")` → **two** full-page renders, not
   one: desktop at 1280px and mobile at 390px. It takes no viewport parameter because it does
   not need one — the breakpoint pair is automatic. Verified 2026-07-29.

@@ -1,6 +1,9 @@
 # SPEC-v2 — implementation spec
 
-Status: **ready to implement**. Scope and decisions live in `PLAN-v2.md` (agreed
+Status: **in execution** (done-markers added 2026-07-29). Done: WP1 · WP2 P1 + P5 · WP3 ·
+WP4 · WP5's probes (P3, P4 — write path proven live). Outstanding: **WP2 P2** (rewritten
+below — the "global lightbox" premise fell on 2026-07-29), **WP5's final end-to-end run**,
+**WP6**. WP7 waits on WP5. Scope and decisions live in `PLAN-v2.md` (agreed
 2026-07-28); shape decisions in `docs/adr/0001` (MCP fork) and `docs/adr/0002` (skill
 split). This file is the executable version: what to change, where, and how to know it
 worked. Written for an implementing agent starting cold.
@@ -26,7 +29,7 @@ plugin-manifest mechanics) and must be checked before use, not assumed.
    UI and publishes there. No mutate operation targets a page with live traffic (none exists
    today — revisit per PLAN-v2 D7 the moment a domain is genuinely connected).
 
-## Current state (validated 2026-07-28)
+## Starting state (validated 2026-07-28 — pre-split; kept as the record, superseded by WP1)
 
 ```
 .claude-plugin/marketplace.json     marketplace "journey-further", plugin "unbounce-native", source ./
@@ -50,7 +53,10 @@ picture of what the client would install. Do not merge until WP6 says so.
 
 ---
 
-## WP1 · Skill split (PLAN-v2 Phase 1 · ADR 0002)
+## WP1 · Skill split (PLAN-v2 Phase 1 · ADR 0002) — ✅ done
+
+**Done (commit `f450937`, slash commands in `3315da2`):** the four skills exist as laid out
+below, tests pass from the new location, and the four slash commands are the entry points.
 
 Split `skills/design-page/` into four skills. Files on disk are the inter-skill contract;
 each skill must work with no memory of the others having run — including in a fresh session.
@@ -134,13 +140,16 @@ skills/edit-page/                   live page → same page, updated in place (c
   build.
 - No SKILL.md contains a connected/baseline conditional.
 
-## WP2 · Probes P1, P2, P5 + resulting changes (Phase 1)
+## WP2 · Probes P1, P2, P5 + resulting changes (Phase 1) — P1 ✅ · P5 ✅ · P2 open
 
 Findings from all three go back to the stakeholder as one batch (client comms, not tracked
 in this repo). Every platform fact discovered lands in a reference doc in the same commit as
 the probe conclusion.
 
-### P1 — hidden form field (highest priority; blocks requirement 1)
+### P1 — hidden form field (highest priority; blocks requirement 1) — ✅ done
+
+**Done:** the shape was proven from a purpose-built export, `<input type="hidden">` is
+emitted and tested (commit `f450937`), and the fact is recorded in `format.md`.
 
 Method: on a scratch page in the editor, add a non-visible field to a form, download the
 page file, read the page JSON. No credentials needed. Capture: the field's `lpType`, its
@@ -163,23 +172,62 @@ requirement 1 should also mention Unbounce's native Dynamic Text Replacement
 which may be part of what the stakeholder actually wants — it does not write into the lead
 record, so it complements P1 rather than replacing it.
 
-### P2 — class-triggered global lightbox vs `hasLightbox: false`
+### P2 — brand-global promo modal (rewritten 2026-07-29; was "class-triggered global lightbox")
 
-Method: build a minimal page whose button carries the agreed class (via `class="…"` in the
-design HTML — the `customClassnames` path at `transcribe.py:246-256` already ships it),
-define a global lightbox in the account settings, publish to a throwaway slug, test on a
-real phone. Two manual steps here, by design: defining the global lightbox is an
-account-admin action done in the UI, and **the publish is done by a human in the UI** —
-ground rule 6 (the MCP never publishes) stands; it is safe because the domain carries no
-live traffic (D7). The question: does the global dialog fire on a page built with
-`hasLightbox: false` (`transcribe.py:656`)? That flag is load-bearing — `true` without a
-lightbox sub-page tree collapses the live mobile render (see `ui-capabilities.md`).
+**The premise fell.** Unbounce has no account-level lightbox: lightboxes are per-page
+constructs, designed inside the page that owns them, up to 20 per page (Unbounce docs,
+checked 2026-07-29). "Define a global lightbox in the account settings" — this section's
+original method — is not an action that exists. The mechanism that actually delivers
+requirement 2 (one promo dialog per brand, changed in one place, fired by an agreed class)
+is a **Script Manager script**: domain-level, injected on every page published to the
+domain, carrying the dialog's HTML/CSS/JS and a click listener for the class. No
+`hasLightbox`, no sub-page tree, no per-page rebuild — the transcriber's
+`hasLightbox: false` stays untouched, so the render-breaker (see `ui-capabilities.md`)
+never comes into play. This matches the stakeholder's own stated reason for wanting it
+global: a promo change must not mean rebuilding every page.
 
-Outcomes: fires → write the recipe into `ui-capabilities.md` and reference it from
-upload-page/edit-page; requires the flag → requirement 2 is refused as automated capability,
-documented as "dialog added in the editor", and the handover says so with the reason.
+Run as three phases; only the last is blocked on the client.
 
-### P5 — icon-set integration (blocks nothing; close it honestly)
+**Phase A — reframe + stakeholder confirmation (desk work, no credentials — do now).**
+Confirm with the stakeholder that a domain-level script satisfies requirement 2. The
+reframing itself is already recorded in `ui-capabilities.md` (the "open question" paragraph
+now states the feature doesn't exist and names the script route). The script's *content* is
+per-client, not plugin content → the domain-level-scripts slot in
+`templates/client-setup/CLAUDE.md`, alongside the P1 URL-param script.
+
+**Phase B — pin the native per-page lightbox shape (unblocked; optional, cheap, rides along).**
+Not needed for requirement 2, but it converts `format.md`'s "active landmine" into a known
+shape while we're in the account: on a scratch page, add a native lightbox + trigger button
+in the editor, download the export, diff against a no-lightbox export. Capture: the
+sub-page tree shape, what `hasLightbox` looks like when a real lightbox exists, and the
+trigger button's action JSON. Record in `format.md`/`ui-capabilities.md`; feeds the
+BACKLOG entry "Add video + lightbox primitives when a real brief needs one". Needs a human
+at the keyboard for SSO; any write back to a variant is screenshot-verified (the WP5 rule).
+
+**Phase C — prove the script fires (blocked on the client's domain).**
+Build the minimal probe page with the agreed class on a button — the `customClassnames`
+path in the transcriber already ships it. Then, in order:
+
+1. Does a **preview** URL execute Script Manager scripts? Untested either way. If yes, the
+   dialog can be verified with no publish at all and Phase C unblocks immediately.
+2. If not: **a human publishes in the UI** to a throwaway slug — ground rule 6 stands; safe
+   because the domain carries no live traffic (D7) — and the dialog is tested on a real
+   phone.
+
+Needs Script Manager access on the account — the same admin dependency the old method had,
+pointed at a feature that actually exists.
+
+Outcomes: fires → recipe into `ui-capabilities.md`, script into the client-setup slot, and
+the handover says *supported — here's how*. No Script Manager access, or no domain ever
+materialises → requirement 2 is documented as "dialog added per page in the editor", with
+the reason, never silent.
+
+### P5 — icon-set integration (blocks nothing; close it honestly) — ✅ closed 2026-07-29
+
+**Closed:** inline SVG renders live, and a stylesheet `<link>` in one `lp-code` is
+document-global — covering icon fonts *and* non-Google faces on native text.
+`webFontsExternalInUse` is the editor's custom-font record, not our hook; it stays `{}`.
+Recorded in `ui-capabilities.md` → *External fonts*.
 
 Two halves: confirm the SVG-as-`lp-code` route renders live (the V2 upload screenshots from
 2026-07-28 may already answer this — check before building a probe), and determine whether
@@ -189,7 +237,10 @@ answer in `ui-capabilities.md` as an explicit "icons: SVG yes / icon fonts …" 
 *set preference* (e.g. Font Awesome) is a per-client convention → WP3 template slot, not
 plugin content.
 
-## WP3 · Convention template + standing constraints (Phase 1 · D6, D8)
+## WP3 · Convention template + standing constraints (Phase 1 · D6, D8) — ✅ done
+
+**Done:** `templates/client-setup/CLAUDE.md` exists with the slots below, and the
+standing-constraints section is in the repo `CLAUDE.md`.
 
 - Create `templates/client-setup/CLAUDE.md` — client-neutral, commented slots, the template
   *is* the documentation. Slots: brand token source; per-brand domains; domain-level scripts
@@ -205,7 +256,19 @@ plugin content.
 Done when a stranger could copy the template into a new brand folder and fill it in without
 asking anything.
 
-## WP4 · The MCP fork + element pair (Phase 2 · D1, D2 · ADR 0001)
+## WP4 · The MCP fork + element pair (Phase 2 · D1, D2 · ADR 0001) — ✅ done, one deliberate deviation
+
+**Done (2026-07-28, proven live 2026-07-29):** the fork exists at
+`journey-further/unbounce-mcp`; its `master` is ruleset-protected, so the work sits on
+`feat/variant-elements` and the plugin's `.mcp.json` pins **tag `v0.1.0-jf.1`** (bumping the
+pin means a new tag, not a push to master). `npx github:org/repo#tag` was probed end to end
+— clean install, server starts, 46 tools listed including the pair — so an npm publish
+isn't needed. Both halves are proven against a live variant: reads are safe; writes
+round-trip, apply targeted patches, and render correctly, provided every patched field
+matches its documented shape. Known wart: every fork save flips `autoscale` null→true —
+harmless to render, fix when the fork is next touched. **The deviation:** item 3 (upstream
+PR + licence ask) is deliberately deferred per the 2026-07-28 decision — ADR 0001's "PR'd
+upstream in parallel" is eventual intent, not a current task.
 
 1. Fork `github.com/cgilchrist/unbounce-mcp` → `journey-further/unbounce-mcp`. A fork on
    GitHub is the legally clean route (upstream has no licence); do **not** copy code into
@@ -253,7 +316,24 @@ Done when: on a throwaway page (prefixed name, deleted after), `get_variant_elem
 equal array, and a fresh `claude` session in a clean checkout sees the tools with no manual
 `claude mcp add`.
 
-## WP5 · Mutate probes + `edit-page` (Phase 2 · P3, P4, D3)
+## WP5 · Mutate probes + `edit-page` (Phase 2 · P3, P4, D3) — probes ✅ · one run left
+
+**Status 2026-07-29: P4 ✅ and P3 ✅ — the write path is proven live.** P4's first run
+blanked a page; the root cause was our malformed patch (`customClassnames` written as an
+array; the field is a string), not the fork — the bisect, the recovery and the fork's one
+wart are written up in `skills/edit-page/SKILL.md`. P3: import rewrites only
+`content.asset.{uuid,content_url,unique_url}` (plus a numeric `content.asset.id` added);
+element ids, geometry and timestamps survive — D3 confirmed, keep bundling.
+`diff_elements.py` is written and wired into both connected skills' docs. **What closes
+this WP:** one edit-page run end to end against a live page (fresh read → patch → write →
+diff → screenshot) exercising the loop as a whole.
+
+**The rule P4 added, binding on every write in this WP and after it:** an elements diff is
+necessary but **never sufficient** — P4's blank page round-tripped byte-identically and
+would have passed `diff_elements.py`. Unbounce applies no content validation on save, so a
+wrong-typed field value is the page-destroying class of mistake and only a screenshot
+catches it. Every write to a variant is verified by `screenshot_variant` too; blank ≈ 27 KB,
+healthy ≈ 382 KB, so it is cheap to spot.
 
 Order matters: **P4 first — it is the kill-shot.** If a written array does not survive, the
 mutate loop is dead regardless of tooling: `edit-page` is withdrawn, handover reverts to
@@ -326,8 +406,9 @@ through the pair?) before any skill text.
 - A page built by the plugin can be updated in place without losing its id, URL, stats,
   leads or integrations.
 - The round-trip probe runs as a command (`diff_elements.py`), not a manual browser session.
-- Requirements 1 and 2 (hidden fields, global lightbox) are each supported or explicitly
-  refused in the handover, with the reason.
+- Requirements 1 and 2 (hidden fields, brand-global promo modal — via Script Manager, not
+  a lightbox; see P2) are each supported or explicitly refused in the handover, with the
+  reason.
 - No skill contains a connected/baseline branch; connected capability exists only as
   `upload-page` and `edit-page`.
 - A design resumes across sessions; `build-page` runs from a design it did not create.

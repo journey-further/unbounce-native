@@ -16,13 +16,12 @@ so this is `ask`, not `deny` — a human decides which kind of page is being
 targeted, because the tool input alone does not say. What the guard removes is
 the possibility of destroying a client's page without anyone being asked.
 
-`set_variant_elements` was added to the list on 2026-07-29, after the P4 probe
-proved it destroys the page it writes to: the elements array round-trips
-byte-identically, and the variant is left unloadable — a blank render and
-"Unable to load your page" in the editor, with no way to repair it in the UI
-because the editor cannot open it. It stays `ask` rather than `deny` because the
-tool is the right one in principle and is expected to work once the fork's save
-payload is fixed; see skills/edit-page/SKILL.md for the write-up.
+`set_variant_elements` was added to the list on 2026-07-29. The tool itself
+works (P4 root-caused the same day: the blank page came from a wrong-typed
+field in the patch, not from the tool), but it replaces a whole live page in
+one call, Unbounce applies no content validation, and the only undo is writing
+the previous array back. `ask` puts a human between an agent and that
+overwrite; see skills/edit-page/SKILL.md for the write-up.
 
 Wired up by hooks/hooks.json. Matched by tool-name suffix across any server name,
 so it holds whether the MCP came from this plugin or from `claude mcp add`.
@@ -50,14 +49,14 @@ GUARDED = {
         "if the target is an MCP-managed HTML/CSS page."
     ),
     "set_variant_elements": (
-        "set_variant_elements is PROVEN BROKEN as of fork tag v0.1.0-jf.1 (P4 probe, "
-        "2026-07-29). It writes the elements array back perfectly — byte-identical on an "
-        "unchanged round-trip — and destroys the variant anyway: the page renders blank and "
-        "the editor reports 'Unable to load your page'. There is no way to repair it in the "
-        "UI, because the editor cannot open it. Do NOT point this at a page anyone needs. "
-        "Only allow it on a throwaway page you are willing to lose, e.g. re-probing after a "
-        "fork fix. To change a real native page today, rebuild with design-page + build-page "
-        "and upload as a new page."
+        "set_variant_elements overwrites an ENTIRE live page with no undo in the UI and no "
+        "server-side content validation: a single wrong-typed field value (e.g. "
+        "customClassnames as an array instead of a string — the P4 failure, root-caused "
+        "2026-07-29) is stored without complaint and renders the page blank and unloadable "
+        "in the editor. Recovery is writing the last known-good array back with this same "
+        "tool. Only allow this if the pre-write array has been read to disk this session and "
+        "a screenshot check is planned for immediately after the write — see "
+        "skills/edit-page/SKILL.md."
     ),
 }
 
@@ -96,7 +95,7 @@ def selftest():
     assert decide("mcp__anything__edit_variant"), "server name must not matter"
     assert decide("mcp__unbounce__upload_unbounce_file") is None
     assert decide("mcp__unbounce__get_variant_elements") is None, "the read half is safe"
-    assert decide("mcp__unbounce__set_variant_elements"), "P4: the native write destroys pages"
+    assert decide("mcp__unbounce__set_variant_elements"), "whole-page overwrite, no undo in the UI"
     assert decide("mcp__plugin_unbounce-native_unbounce__set_variant_elements")
     assert decide("Bash") is None
     assert decide("") is None

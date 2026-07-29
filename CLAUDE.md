@@ -83,24 +83,27 @@ non-Google faces on native text. `webFontsExternalInUse` is the editor's custom-
 not our hook; it stays `{}`. See `ui-capabilities.md` → *External fonts* · WP4 the element
 tool pair and the plugin wiring.
 
-Outstanding: WP5 a working `edit-page` (blocked on a fork fix, below) · WP6 merge and
-cold-start acceptance.
+Outstanding: WP5's last probe — an *editor* save (human, in the UI) re-read and diffed, to
+prove a client edit doesn't clobber what we write; everything else in WP5 is done, including
+`diff_elements.py` (verified against real probe data both strict and `--import`) · WP6 merge
+and cold-start acceptance.
 
-### WP5 probes ran 2026-07-29 — P3 passed, P4 failed
+### WP5 probes, 2026-07-29 — P3 passed; P4 failed, then root-caused the same day
 
 **P3 answered:** import rewrites almost nothing. Element ids survive, geometry survives (only
 `70.0`→`70` type coercion), no timestamps change; **only** `content.asset.{uuid,content_url,unique_url}`
 are rewritten and a numeric `content.asset.id` is added. Confirms D3 — keep bundling.
 
-**P4 failed, and dangerously.** `set_variant_elements` at tag `v0.1.0-jf.1` round-trips the
-array **byte-identically** and applies targeted patches exactly — then the page renders
-**completely blank**. A control upload of the same file, never written to, renders perfectly, so
-the write is the cause. Localised to the fork's save payload: `directSetVariantElements` rebuilds
-the entire save body via `buildVariantXml`, which re-serialises a fixed field list, so anything
-absent from `edit.json` overwrites good data with empty CDATA or `"undefined"`. Prime suspects:
-`settings` (holds `defaultWidth` + `multipleBreakpointsEnabled`) and the sub-page tree. Full
-write-up in `skills/edit-page/SKILL.md`. `edit-page` is **deferred, not withdrawn** — this looks
-like our bug, not an Unbounce limit.
+**P4's blank page was our malformed patch, not the fork.** The probe wrote `customClassnames`
+as an **array**; the field is a **string** (format.md said so all along). A controlled bisect
+(one change per write, screenshot after each) proved: unchanged round-trips, text patches and
+string-typed `customClassnames` all render perfectly; the array-typed field alone blanks the
+page and locks the editor out; **writing the clean array back restores the page** — the
+damage is reversible, not fatal. Unbounce applies no content validation on save, so a
+wrong-typed field value is the page-destroying class of mistake and only a screenshot catches
+it. One genuine fork wart found by diffing the full `edit.json` before/after: every save
+flips `autoscale` null→true (string `"null"` boolean-cast). Harmless to render; fix in the
+fork when next touched. Full write-up in `skills/edit-page/SKILL.md`.
 
 **The rule that came out of it, which outlives the bug:** an elements diff is necessary but
 **never sufficient**. `diff_elements.py` as specced in SPEC-v2 would have passed this failure —
@@ -125,8 +128,9 @@ plugin's root `.mcp.json` pins them by tag. Facts worth not rediscovering:
   `title` a required field on a `userConfig` option; SPEC-v2 omits it.
 - **No upstream PR and no licence ask** — deliberate, per the 2026-07-28 decision. ADR 0001's
   "PR'd upstream in parallel" is the eventual intent, not a current task.
-- The write half is **unproven against a live variant** — that is WP5, and `edit-page` stays
-  blocked until it passes. The read half is safe.
+- **Both halves are proven against a live variant** (2026-07-29): reads are safe, and writes
+  round-trip, apply targeted patches, and render correctly — provided every patched field
+  matches its documented shape. Known wart: each save flips `autoscale` null→true.
 
 **Blocked on the client, not on us** (2026-07-28): anything needing a published page or a real
 device. The client has no domain set up, so P2 (global lightbox — also no admin access to

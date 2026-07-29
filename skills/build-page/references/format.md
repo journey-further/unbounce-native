@@ -81,6 +81,13 @@ shared hook instead of a list of ids, and the client can add or remove the class
 UI. Space-separating multiple classes is the obvious reading of the plural name but is
 **not yet proven** — probe before emitting more than one.
 
+⚠️ **A string, never an array.** `customClassnames: ["x"]` is accepted by the save API
+without complaint and then blanks the entire page — blank at both breakpoints and "Unable to
+load your page" in the editor (the P4 failure, root-caused 2026-07-29). The same value as a
+plain string renders perfectly. Wrong-typed field values generally are the page-destroying
+class of mistake: Unbounce stores them and dies at render, so nothing catches them before a
+screenshot does.
+
 ### Layout model
 
 - Blocks are `position: relative` and stack in array order. Children are

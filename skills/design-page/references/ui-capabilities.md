@@ -112,11 +112,15 @@ form's modal confirmation — while `hasLightbox` is still `false`. So a sub-pag
 by itself require the flag, and the transcriber emits exactly one sub-page (the form
 confirmation) with the flag off. That combination is proven; `hasLightbox: true` is not.
 
-**Global (account-level) lightboxes are an open question, not a refusal.** Whether a global
-dialog triggered by a custom class fires on a page built with `hasLightbox: false` has not
-been tested — it needs an account that has global lightboxes available plus a published page
-on a real domain. Until then, treat a lightbox CTA as an anchor and say so in the handover.
-Don't set the flag to find out: `true` without a lightbox tree is the render-breaker above.
+**There is no account-level lightbox.** Checked against Unbounce's own documentation
+2026-07-29: lightboxes are per-page constructs, designed inside the page that owns them (up
+to 20 per page). A brand-global, class-triggered promo dialog is therefore a **Script
+Manager** (domain-level) script carrying the dialog's HTML/CSS/JS and a click listener for
+the agreed class — no `hasLightbox`, no sub-page tree, so the render-breaker above never
+comes into play. Whether such a script executes on a *preview* URL is untested; proving it
+live needs the client's domain (SPEC-v2 P2, Phase C). Until then, treat a lightbox CTA as
+an anchor and say so in the handover. Don't set the flag to find out: `true` without a
+lightbox tree is the render-breaker above.
 
 ## After every upload
 
