@@ -249,8 +249,18 @@ transcriber, both the emitted `publishedStyles` and this CSS move together.
 ## Fonts
 
 Derived automatically from the Google Fonts `<link>` href → `settings.json` `fonts[]` +
-`webFontsInUse`. Declare exactly the families and weights the design uses; anything you
-reference in an inline style but don't declare renders as a fallback.
+`webFontsInUse`. Declare exactly the families and weights the design uses; a Google family
+referenced in an inline style but missing from the href renders as a fallback.
+
+**A face that isn't on Google Fonts still works** — proven 2026-07-29. Put its stylesheet
+`<link>` in one small `lp-code` element; the CSS is document-global, so every text element on
+the page can then use the family, and it needs no entry in the fonts href. Full recipe in
+`ui-capabilities.md` → *External fonts*.
+
+⚠️ **Quote a family name whose words aren't valid CSS identifiers.** `font-family:Open Sans`
+is fine unquoted; `font-family:Press Start 2P` is **invalid CSS** — `2P` starts with a digit,
+so the browser drops the declaration and the text silently falls back. The transcriber ships
+`content.text` verbatim and won't fix it. Quote when in doubt: `font-family:'Press Start 2P'`.
 
 ## Measurement
 

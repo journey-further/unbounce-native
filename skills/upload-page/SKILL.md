@@ -57,17 +57,20 @@ variant_id = "a")`.
 looks.
 
 - `get_page_variants(page_id)` → confirm the variant letters and weights are what you expect.
-- `screenshot_variant(page_id, variant, source = "preview")` → a full-page render.
+- `screenshot_variant(page_id, variant, source = "preview")` → **two** full-page renders, not
+  one: desktop at 1280px and mobile at 390px. It takes no viewport parameter because it does
+  not need one — the breakpoint pair is automatic. Verified 2026-07-29.
   `source: "published"` is faster but only works on a published page, which ours never is.
-- Walk the screenshot against the design: every block present, nothing overlapping, no
-  collapsed section.
+- Walk **both** screenshots against the design: every block present, nothing overlapping, no
+  collapsed section, and the mobile reflow is the one the `@media` block describes.
 
-**Mobile is a manual check.** `screenshot_variant` has **no viewport parameter** — it renders
-one full-page shot, not a breakpoint pair. So mobile verification is `get_variant_preview_url`
-opened at a 320px viewport, and ideally **a real phone**: the three render-breakers
-(`multipleBreakpointsEnabled`, `hasLightbox`, string `scale`) present as "fine in the editor,
-broken on a device". If a mobile-capable screenshot tool appears in the MCP, this step folds
-back into the automated pass.
+**Mobile is covered by the automated pass, with one caveat.** The mobile shot renders at
+**390px** while the design contract authors mobile geometry at **320px**, so text sits in a
+narrower box than it was measured for and long labels wrap one line further than expected.
+Judge overlap and reflow from it; don't read a tight wrap as a defect without checking the
+320px measurement. A real phone remains the only proof against the three render-breakers
+(`multipleBreakpointsEnabled`, `hasLightbox`, string `scale`), which present as "fine in the
+editor, broken on a device" — see the note on that in the repo `CLAUDE.md`.
 
 **4 · Hand over the link.** `get_variant_preview_url(page_id, variant)` returns two URLs:
 `share_url` for the user (an `app.unbounce.com` link, works while unpublished) and

@@ -2,7 +2,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "mcp__.*__(deploy_page|edit_variant)",
+        "matcher": "mcp__.*__(deploy_page|edit_variant|set_variant_elements)",
         "hooks": [
           {
             "type": "command",

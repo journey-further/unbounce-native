@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PreToolUse guard: the two MCP tools that flatten a native Unbounce page.
+"""PreToolUse guard: the MCP tools that can destroy a native Unbounce page.
 
 `deploy_page` and `edit_variant` both assume a page IS an lp-code blob. On a page
 built by this plugin that assumption is false and the damage is silent:
@@ -15,6 +15,14 @@ Both are legitimate on an MCP-managed page (one the agent authored as HTML/CSS),
 so this is `ask`, not `deny` — a human decides which kind of page is being
 targeted, because the tool input alone does not say. What the guard removes is
 the possibility of destroying a client's page without anyone being asked.
+
+`set_variant_elements` was added to the list on 2026-07-29, after the P4 probe
+proved it destroys the page it writes to: the elements array round-trips
+byte-identically, and the variant is left unloadable — a blank render and
+"Unable to load your page" in the editor, with no way to repair it in the UI
+because the editor cannot open it. It stays `ask` rather than `deny` because the
+tool is the right one in principle and is expected to work once the fork's save
+payload is fixed; see skills/edit-page/SKILL.md for the write-up.
 
 Wired up by hooks/hooks.json. Matched by tool-name suffix across any server name,
 so it holds whether the MCP came from this plugin or from `claude mcp add`.
@@ -40,6 +48,16 @@ GUARDED = {
         "replaces a piece of decoration with a whole page and leaves the content you meant "
         "to edit untouched. Read the page with get_variant_elements instead. Only allow this "
         "if the target is an MCP-managed HTML/CSS page."
+    ),
+    "set_variant_elements": (
+        "set_variant_elements is PROVEN BROKEN as of fork tag v0.1.0-jf.1 (P4 probe, "
+        "2026-07-29). It writes the elements array back perfectly — byte-identical on an "
+        "unchanged round-trip — and destroys the variant anyway: the page renders blank and "
+        "the editor reports 'Unable to load your page'. There is no way to repair it in the "
+        "UI, because the editor cannot open it. Do NOT point this at a page anyone needs. "
+        "Only allow it on a throwaway page you are willing to lose, e.g. re-probing after a "
+        "fork fix. To change a real native page today, rebuild with design-page + build-page "
+        "and upload as a new page."
     ),
 }
 
@@ -77,8 +95,9 @@ def selftest():
     assert decide("mcp__unbounce__edit_variant")
     assert decide("mcp__anything__edit_variant"), "server name must not matter"
     assert decide("mcp__unbounce__upload_unbounce_file") is None
-    assert decide("mcp__unbounce__get_variant_elements") is None
-    assert decide("mcp__unbounce__set_variant_elements") is None, "the native write is allowed"
+    assert decide("mcp__unbounce__get_variant_elements") is None, "the read half is safe"
+    assert decide("mcp__unbounce__set_variant_elements"), "P4: the native write destroys pages"
+    assert decide("mcp__plugin_unbounce-native_unbounce__set_variant_elements")
     assert decide("Bash") is None
     assert decide("") is None
     assert decide(None) is None

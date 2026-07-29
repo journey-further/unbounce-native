@@ -42,7 +42,8 @@ Unbounce flagging exactly this. Generated files must rebase both breakpoints.
 The Google Fonts picker is built in, and custom fonts are supported via `@font-face` with
 self-hosted files. **The file format is more capable than the pickers** — arbitrary hex and
 any Google Font are expressible in element JSON regardless of what the picker offers. That
-gap is the reason for generating the file.
+gap is the reason for generating the file. For a face that is neither a Google Font nor
+self-hosted, see *External fonts* below — proven, and it needs no editor setup.
 
 ### Dynamic text replacement
 `{KeyWord:Default}` PPC insertion is native in Classic. Relevant for ad-group message
@@ -54,11 +55,47 @@ parameter *into the lead* is a hidden field plus a domain-level script.
 - **Inline SVG in a small `lp-code` element renders correctly live.** Confirmed 2026-07-28.
   This is the supported route for icons and the sanctioned use of `lp-code`: one small element
   per icon, never a page-shaped blob.
-- **Icon fonts from a non-Google CDN are unproven.** `settings.json` carries a
-  `webFontsExternalInUse` key that the transcriber always emits as `{}`; whether it is a real
-  hook for an external font CDN or vestigial has not been probed. Until it is, an icon font is
-  refused — use SVG. An icon *set* preference (Font Awesome, Lucide…) is a per-client
-  convention, so it belongs in the client-setup template, not here.
+- **Icon fonts from an external CDN work.** Proven 2026-07-29 (P5). Put the stylesheet
+  `<link>` in one `lp-code` element and the glyph markup wherever you want it — see *External
+  fonts* below for the recipe. An icon *set* preference (Font Awesome, Lucide…) is a
+  per-client convention, so it belongs in the client-setup template, not here.
+- **Prefer inline SVG anyway** unless the client has already standardised on an icon font.
+  SVG has no network dependency, no FOUT and no licence question; the icon-font route exists
+  because some clients arrive with one, not because it is better.
+
+### External fonts (icon fonts and text faces)
+
+**Proven 2026-07-29 (P5), on a real upload, both breakpoints.** A stylesheet `<link>` inside
+an `lp-code` element survives import and loads live, and its CSS is **document-global** — one
+`<link>` in one small `lp-code` covers the whole page. Everything downstream then works:
+
+- **Glyphs in any other `lp-code`** with no `<link>` of their own. Confirmed.
+- **A native `lp-pom-text` element in the external family.** Confirmed — Unbounce does *not*
+  strip a `font-family` that appears in no `fonts[]` entry. So non-Google brand faces are
+  reachable on real editable text, not just inside code blocks.
+
+```html
+<!-- one small lp-code, anywhere on the page, carries the links for the whole document -->
+<div id="fonts" data-lp-type="code" style="left:70px;top:0;width:36px;height:12px"
+  ><link rel="stylesheet" href="https://cdn.example/icons.css"
+  ><link rel="stylesheet" href="https://cdn.example/brand-face.css"></div>
+```
+
+⚠️ **Quote a family name whose words are not valid CSS identifiers.** `font-family:Open Sans`
+is legal unquoted (two identifiers); `font-family:Press Start 2P` is **invalid CSS** because
+`2P` starts with a digit, so the browser drops the whole declaration and the text silently
+falls back. The transcriber passes `content.text` through verbatim and does not fix this for
+you. Write `font-family:'Press Start 2P'` — quoting always works, so quote when in doubt. This
+cost one wasted probe upload; don't repeat it.
+
+**`webFontsExternalInUse` is a real key, and not the one you want.** It is the page-level
+record of fonts registered through the editor's own **Settings → Add custom fonts** (family
+name + weight + externally hosted URL + a licence acknowledgement; multiple weights per
+family). That is an account-admin action, its in-file shape is unproven, and the `lp-code`
+`<link>` route above needs none of it — so the transcriber keeps emitting `{}`, which is
+correct. Both real exports carry `{}`, including the one using two Google families (those land
+in `webFontsInUse`). If a client has already registered custom fonts in the editor and wants
+them picked up natively, that is a probe, not a guess.
 
 ## What we deliberately don't touch
 
@@ -68,7 +105,7 @@ parameter *into the lead* is a hidden field plus a domain-level script.
 | Video | Appears in the blank-template sampler but in no real export — untested code path. Use an `lp-code` embed. |
 | `<select>` / `<textarea>` form fields | No verified in-file shape. Add natively in the editor after import. |
 | Sticky header | No proven key in any export we have. Toggle it in the editor. |
-| Icon fonts from an external CDN | `webFontsExternalInUse` unprobed — see Icons above. Use inline SVG. |
+| Editor-registered custom fonts (`webFontsExternalInUse`) | In-file shape unproven, and an account-admin action to set up. The `lp-code` `<link>` route needs none of it — see *External fonts* above. |
 
 **A note on the form-confirmation sub-page.** A real export carries a `sub_pages/` tree — the
 form's modal confirmation — while `hasLightbox` is still `false`. So a sub-page tree does not

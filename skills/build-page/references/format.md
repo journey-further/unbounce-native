@@ -118,6 +118,14 @@ UI. Space-separating multiple classes is the obvious reading of the plural name 
   (`{family, variants:[{name, fontWeight, fontStyle, displayName}]}`) **and**
   `webFontsInUse: {family: [weights]}`, then use the family in inline styles. No picker
   involved. Confirmed rendering for Google Fonts declared this way.
+- **Fonts from outside Google need no registration at all.** Proven 2026-07-29 (P5): a
+  stylesheet `<link>` inside an `lp-code` element loads live and its CSS is document-global, so
+  a `font-family` in `content.text` renders even though the family is in neither `fonts[]` nor
+  `webFontsInUse`. `content.fonts` stays `[]` and that is fine. Recipe and the CSS-quoting trap
+  are in `skills/design-page/references/ui-capabilities.md` → *External fonts*.
+- **`webFontsExternalInUse` stays `{}`.** It records fonts registered through the editor's
+  Settings → Add custom fonts, not anything we emit; its in-file shape is unproven. Both real
+  exports carry `{}`, including the one using two Google families. Do not populate it.
 
 ### Images — native images STRETCH
 

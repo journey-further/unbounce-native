@@ -54,9 +54,9 @@ varied page, upload it, **download it again**, diff. That's how every non-obviou
   repo.
 - **Per-client conventions live in `templates/client-setup/`**, copied per brand into the
   client's own repo — never filled in here.
-- **The two page-flattening tools are guarded, not just documented.**
-  `hooks/hooks.json` + `scripts/guard-native-page.py` escalate `deploy_page` and
-  `edit_variant` to the user. Matched by tool-name suffix (`mcp__.*__(deploy_page|edit_variant)`)
+- **The three page-destroying tools are guarded, not just documented.**
+  `hooks/hooks.json` + `scripts/guard-native-page.py` escalate `deploy_page`,
+  `edit_variant` and — since the P4 failure on 2026-07-29 — `set_variant_elements` to the user. Matched by tool-name suffix (`mcp__.*__(deploy_page|edit_variant)`)
   so it fires under any server name — a plugin-bundled MCP scopes its tools as
   `mcp__plugin_<plugin>_<server>__<tool>`, and a matcher written against the bare server key
   never fires. It escalates rather than denies because both tools are correct on an
@@ -77,11 +77,35 @@ v2 in progress (`SPEC-v2.md` is the executable plan, `PLAN-v2.md` the decisions)
 
 Done: WP1 the four-skill split · WP3 the client-setup template and these constraints ·
 WP2 P1 **hidden fields are supported** (shape proven from a purpose-built export, emitted and
-tested) · WP2 P5 half — inline SVG icons render live · WP4 the element tool pair and the
-plugin wiring.
+tested) · **WP2 P5 closed** (2026-07-29) — inline SVG icons render live, and so do external
+fonts: a stylesheet `<link>` in one `lp-code` is document-global, covering icon fonts *and*
+non-Google faces on native text. `webFontsExternalInUse` is the editor's custom-font record,
+not our hook; it stays `{}`. See `ui-capabilities.md` → *External fonts* · WP4 the element
+tool pair and the plugin wiring.
 
-Outstanding: WP5 mutate probes and a working `edit-page` · WP6 merge and cold-start
-acceptance.
+Outstanding: WP5 a working `edit-page` (blocked on a fork fix, below) · WP6 merge and
+cold-start acceptance.
+
+### WP5 probes ran 2026-07-29 — P3 passed, P4 failed
+
+**P3 answered:** import rewrites almost nothing. Element ids survive, geometry survives (only
+`70.0`→`70` type coercion), no timestamps change; **only** `content.asset.{uuid,content_url,unique_url}`
+are rewritten and a numeric `content.asset.id` is added. Confirms D3 — keep bundling.
+
+**P4 failed, and dangerously.** `set_variant_elements` at tag `v0.1.0-jf.1` round-trips the
+array **byte-identically** and applies targeted patches exactly — then the page renders
+**completely blank**. A control upload of the same file, never written to, renders perfectly, so
+the write is the cause. Localised to the fork's save payload: `directSetVariantElements` rebuilds
+the entire save body via `buildVariantXml`, which re-serialises a fixed field list, so anything
+absent from `edit.json` overwrites good data with empty CDATA or `"undefined"`. Prime suspects:
+`settings` (holds `defaultWidth` + `multipleBreakpointsEnabled`) and the sub-page tree. Full
+write-up in `skills/edit-page/SKILL.md`. `edit-page` is **deferred, not withdrawn** — this looks
+like our bug, not an Unbounce limit.
+
+**The rule that came out of it, which outlives the bug:** an elements diff is necessary but
+**never sufficient**. `diff_elements.py` as specced in SPEC-v2 would have passed this failure —
+the array was byte-identical. Every write to a variant must be verified by a **screenshot** too.
+Blank ≈ 27 KB, healthy ≈ 382 KB, so it is cheap to spot.
 
 ### The fork (WP4, 2026-07-28)
 
