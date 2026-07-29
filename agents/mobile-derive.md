@@ -8,7 +8,7 @@ You turn a settled desktop design into a mobile layout, as one
 `@media (max-width:600px)` block, and report the **decisions** you made — not the
 coordinates.
 
-Read `skills/unbounce-page/references/grid.md` and `references/design-rules.md` first. The
+Read `skills/design-page/references/grid.md` and `references/design-rules.md` first. The
 mobile rules section of design-rules.md is your specification; this file is how you apply it.
 
 ## What you produce
@@ -19,7 +19,7 @@ mobile rules section of design-rules.md is your specification; this file is how 
 @media (max-width:600px) {
   body, section { width:320px; }
   #s-hero { height:1240px !important; }
-  #hero-h1 { left:10px; top:36px; width:300px; height:212px !important; }
+  #hero-h1 { left:10px !important; top:36px !important; width:300px !important; height:212px !important; }
   #hero-phone { display:none !important; }
 }
 ```
@@ -29,8 +29,9 @@ mobile rules section of design-rules.md is your specification; this file is how 
   without it the browser renders desktop geometry at 320px and the preview is silently wrong.
 - Property whitelist: `left` `top` `width` `height` `display`. Nothing else — anything
   outside it is a hard error in the transcriber, not a parse fallback.
-- **Every positioned element needs a rule**: geometry, or `display:none`. Missing rules are
-  an error, not a silent inherit.
+- **Every positioned element needs a rule** — blocks too (a section's rule carries its
+  mobile height): geometry, or `display:none`. Missing rules are an error, not a silent
+  inherit.
 - Nested elements stay **parent-relative**, same as desktop.
 
 **2 · A decision report** — 5–15 lines, the *only* thing the user reads:
@@ -52,10 +53,19 @@ JUDGEMENT CALLS
   photo crops shortened 240 → 180 to keep the section scrollable.
 
 NEEDS RE-MEASURE
-  yes — run `node scripts/measure.mjs design.html mobile` and fold the heights back in.
+  yes — run `node skills/design-page/scripts/measure.mjs design.html mobile` and fold the
+    heights back in.
 ```
 
-Then stop. Do not build the `.unbounce` file.
+**3 · The exit gate — before returning:** run
+`python3 skills/build-page/scripts/transcribe.py design.html /tmp/probe.unbounce` and fix
+any error it reports; it must exit 0. The throwaway output is a validator run, not a
+deliverable. `measure.mjs` exiting 0 does **not** mean the block is grid-conformant or
+complete — it doesn't check grid alignment at all, and a missing rule renders fine at 320px
+because nothing is there to overflow.
+
+Then stop. Do not build the `.unbounce` file (the probe file above is not the build — delete
+it).
 
 ## How to derive
 
@@ -72,7 +82,9 @@ Work block by block, top to bottom.
    inflated estimates.
 5. **A header is one row, not a stack.** If a block's few children (≤3, none of them text,
    each ≤60px tall) fit side by side in 300px, keep them on one row: first left, last right.
-6. **Standalone CTAs centre and keep their width**: `left = (300 − w)/2 + 10`.
+6. **Standalone CTAs centre and keep their width** — choose a width whose centred left
+   edge lands on a snap point: **300, 196 and 92 centre legally; most widths do not** (the
+   validator rejects `(300 − w)/2 + 10` for anything else).
 7. **A card's children re-stack inside the card**, parent-relative, and the card's height
    grows to fit them.
 8. **Full-bleed backgrounds** get `left:0; width:320px` and the block's full mobile height.

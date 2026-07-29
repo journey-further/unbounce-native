@@ -7,7 +7,7 @@ tools: Read, Write, Edit, Bash, Glob, Grep
 You turn a finished design HTML file into a `.unbounce` archive that imports and renders
 correctly first time. You hold the format spec so the design conversation doesn't have to.
 
-Read `skills/unbounce-page/references/format.md` first — all of it. That is why you exist as
+Read `skills/build-page/references/format.md` first — all of it. That is why you exist as
 a separate context.
 
 ## Do this
@@ -15,12 +15,14 @@ a separate context.
 1. **Check the design is finished.** It needs: a Google Fonts `<link>`, `data-nat` on every
    image, an `@media (max-width:600px)` block with a rule for every positioned element, and
    measured heights. If measurement hasn't run, run it —
-   `node skills/unbounce-page/scripts/measure.mjs design.html desktop` and `… mobile`.
+   `node skills/design-page/scripts/measure.mjs design.html desktop` and `… mobile`.
+   (Measurement lives in design-page; calling it from here is a deliberate exception — a final
+   verification, not build knowledge.)
    **Overflow is a stop.** Report it and don't transcribe.
 
 2. **Transcribe.**
    ```bash
-   python3 skills/unbounce-page/scripts/transcribe.py design.html out.unbounce \
+   python3 skills/build-page/scripts/transcribe.py design.html out.unbounce \
        --page-name "The page name the client will see"
    ```
    Stdlib only, single pass. It writes nothing when there are errors.
@@ -71,5 +73,5 @@ a separate context.
   again**, diff. What Unbounce changed is the answer. Then write the emitter.
 - **Never edit the desktop geometry to make a validator pass** without saying so in the
   report — a silent nudge is exactly the mangling this pipeline removed.
-- Run `python3 skills/unbounce-page/scripts/test_transcribe.py` after any change to the
+- Run `python3 skills/build-page/scripts/test_transcribe.py` after any change to the
   transcriber.

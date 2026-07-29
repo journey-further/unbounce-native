@@ -4,10 +4,12 @@
     "name": "Journey Further",
     "url": "https://github.com/journey-further"
   },
+  "description": "Journey Further's landing-page tooling for Claude Code.",
   "plugins": [
     {
       "name": "unbounce-native",
       "source": "./",
+      "version": "1.0.0",
       "description": "Design and build natively-editable Unbounce landing pages — real lp-pom-* elements the client can edit in the drag-and-drop editor, never one raw-HTML blob."
     }
   ]

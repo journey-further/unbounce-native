@@ -26,11 +26,16 @@ LP_TYPES = {"block": "lp-pom-block", "box": "lp-pom-box", "text": "lp-pom-text",
             "image": "lp-pom-image", "button": "lp-pom-button", "form": "lp-pom-form",
             "code": "lp-code", "submit": "lp-pom-button"}
 VOID = {"img", "input", "br", "hr", "meta", "link", "source", "col"}
+# custom classes end up in a stylesheet selector, so they must be plain CSS identifiers
+CLASS_RE = re.compile(r"-?[A-Za-z_][A-Za-z0-9_-]*")
 # lpType values proven in real exports. Anything else is an error, never a guess.
 INPUT_LPTYPE = {
     "text":  ("single-line-text", {}),
     "email": ("single-line-text", {"email": True}),
     "tel":   ("single-line-text", {"phone": True}),
+    # hidden carries a different field shape (a `value`, no placeholder/show/validations) and
+    # sits outside the visible field stride — see form() and format.md.
+    "hidden": ("hidden", {}),
 }
 
 
@@ -52,17 +57,26 @@ def px(v, default=None):
 
 
 def hexcolor(v, default=None):
+    """First colour token anywhere in the value — shorthand like `1px solid #e8e8e8` or
+    `url(…) #fff` must not fall through to the default. rgba alpha is discarded (the
+    format has nowhere to put it — design-rules.md's Opacity section)."""
     if not v:
         return default
-    v = v.strip()
-    m = re.match(r"#([0-9a-fA-F]{6})\b", v) or re.match(r"#([0-9a-fA-F]{3})\b", v)
-    if m:
-        h = m.group(1)
-        return "".join(c * 2 for c in h) if len(h) == 3 else h.lower()
-    m = re.match(r"rgba?\(\s*(\d+)\D+(\d+)\D+(\d+)", v)
-    if m:
-        return "%02x%02x%02x" % tuple(int(g) for g in m.groups()[:3])
-    return default
+    m = re.search(r"#([0-9a-fA-F]{6})\b|#([0-9a-fA-F]{3})\b|rgba?\(\s*(\d+)\D+(\d+)\D+(\d+)",
+                  str(v))
+    if not m:
+        return default
+    if m.group(1):
+        return m.group(1).lower()
+    if m.group(2):
+        return "".join(c * 2 for c in m.group(2))
+    return "%02x%02x%02x" % tuple(int(g) for g in m.group(3, 4, 5))
+
+
+def label_text(inner):
+    """Button label from captured inner HTML: tags stripped, whitespace collapsed."""
+    from html import unescape
+    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", unescape(inner))).strip()
 
 
 def darken(hx, f=0.88):
@@ -132,7 +146,8 @@ class Design(HTMLParser):
         if tag in VOID or self_closing:
             return
         self.open.append(n)
-        if lp in ("text", "code"):
+        # buttons capture too: their inner text is the label (design-rules.md)
+        if lp in ("text", "code", "button", "submit"):
             self.cap = (n, tag, [1])
 
     def handle_endtag(self, tag):
@@ -213,7 +228,9 @@ def parse_fonts(href):
 class Build:
     def __init__(self):
         self.n = 10
-        self.els, self.fit = [], {}   # fit: lp id -> "cover"|"contain"
+        self.els = []
+        self.fit = set()              # "cover" / "contain" — which fit classes are in use
+        self.classes = {}             # lp id -> [class names]
 
     def nid(self, kind):
         self.n += 1
@@ -222,6 +239,24 @@ class Build:
     def add(self, e):
         self.els.append(e)
         return e["id"]
+
+    def cls(self, eid, *names):
+        """Queue custom classes for an element. Stamped on by apply_classes()."""
+        if eid and names:
+            self.classes.setdefault(eid, []).extend(names)
+
+    def apply_classes(self, errors):
+        """`customClassnames` is a top-level space-separated string — the editor's own
+        custom-class field, so it round-trips (proven, see format.md)."""
+        by_id = {e["id"]: e for e in self.els}
+        for eid, names in self.classes.items():
+            uniq = list(dict.fromkeys(names))
+            for c in uniq:
+                if not CLASS_RE.fullmatch(c):
+                    errors.append(f"{eid}: class {c!r} is not a plain CSS identifier — "
+                                  "custom classes ship into a stylesheet selector")
+            if eid in by_id:
+                by_id[eid]["customClassnames"] = " ".join(uniq)
 
     # -- shared fragments
     @staticmethod
@@ -256,7 +291,12 @@ class Build:
         eid = self.nid("pom-block")
         grid = lambda b: {"columns": b["cols"], "rowHeight": b["rh"], "xGap": 12, "yGap": 0,
                           "padding": {"top": 0, "right": b["pad"], "bottom": 0, "left": b["pad"]},
-                          "snapToGrid": True}
+                          # Snap off: each edge snaps independently (no centre anchor), so
+                          # centred elements jump when clicked. Element-to-element alignment
+                          # guides survive snapToGrid:false, and showGrid stays on — the
+                          # client sees the grid, isn't dragged onto it. Re-enable per
+                          # section in the UI if wanted. See design-page/references/grid.md.
+                          "snapToGrid": False}
         return self.add({
             "name": name, "id": eid, "type": "lp-pom-block", "containerId": "lp-pom-root",
             "style": {"background": {"backgroundColor": bg, "opacity": 100},
@@ -313,7 +353,8 @@ class Build:
     def image(self, asset, g, container, z, fit, url):
         eid = self.nid("pom-image")
         if fit:
-            self.fit[eid] = fit
+            self.fit.add(fit)
+            self.cls(eid, f"fit-{fit}")
         w, h = g["w"], g["h"]
         return self.add({
             "name": g["name"], "id": eid, "type": "lp-pom-image", "containerId": container,
@@ -379,6 +420,13 @@ class Build:
             lptype, val = INPUT_LPTYPE[itype]
             u = str(uuid.uuid4())
             uuids.append(u)
+            if itype == "hidden":
+                # Verified shape (real export, 2026-07-28): no placeholder, no show, no
+                # validations; a `value` instead. It joins steps[].fieldUUIDs like any field.
+                out.append({"name": f.get("data-label") or f.get("name") or f.get("id"),
+                            "id": f.get("name") or f.get("id"), "type": "hidden",
+                            "lpType": "hidden", "value": f.get("value", ""), "uuid": u})
+                continue
             fd = {"name": f.get("data-label") or f.get("placeholder") or f.get("name", "Field"),
                   "id": f.get("name") or f.get("id"), "placeholder": f.get("placeholder", ""),
                   "type": "text", "lpType": lptype,
@@ -387,15 +435,33 @@ class Build:
             if val.get("phone"):
                 fd["validationType"] = "north-american"
             out.append(fd)
-        pub = lambda w: [s for i, f in enumerate(out) for s in (
-            {"selector": f"#container_{f['id']}", "top": i * 71, "left": 0, "width": w, "height": 53},
+        # publishedStyles is DERIVED from the form chrome below — the editor recomputes it on
+        # save, so hard-coded values silently drift (found by round-trip diff). See format.md.
+        # ponytail: label height fitted to two observations (font 11 -> 12, 14 -> 15).
+        label_size, label_gap, field_h, border_w, field_gap = 11, 4, 44, 1, 18
+        label_h = round(label_size * 1.1)
+        input_h = field_h + 2 * border_w
+        input_top = label_h + label_gap
+        container_h = input_top + input_h
+        stride = container_h + field_gap
+        # Hidden fields take no stride slot and no container/input/label triple — just one
+        # zero-size `#<id>` rule, appended after the visible ones (verified: real export
+        # 2026-07-28, hidden field last). So the form's height budget is visible fields only.
+        vis = [f for f in out if f["lpType"] != "hidden"]
+        hid = [f for f in out if f["lpType"] == "hidden"]
+        pub = lambda w: [s for i, f in enumerate(vis) for s in (
+            {"selector": f"#container_{f['id']}", "top": i * stride, "left": 0, "width": w,
+             "height": container_h},
             {"selector": f".lp-pom-form-field .ub-input-item.single.form_elem_{f['id']}",
-             "top": 19, "left": 0, "width": w, "height": 34},
-            {"selector": f"#label_{f['id']}", "top": 0, "left": 0, "width": w, "height": 15})]
+             "top": input_top, "left": 0, "width": w, "height": input_h},
+            {"selector": f"#label_{f['id']}", "top": 0, "left": 0, "width": w,
+             "height": label_h})] + [
+            {"selector": f"#{f['id']}", "top": 0, "left": 0, "width": 0, "height": 0}
+            for f in hid]
         submit_id = self.nid("pom-button")
         self.add({
             "name": g["name"], "id": fid, "type": "lp-pom-form", "containerId": container,
-            "style": {"label": {"font": {"size": 11, "family": body_font, "weight": 600,
+            "style": {"label": {"font": {"size": label_size, "family": body_font, "weight": 600,
                                          "style": "normal", "textStyles": {"strong": True}},
                                 "color": "888888", "centerAlign": False},
                       "cbxlabel": {"font": {"size": 13, "family": body_font, "weight": 400,
@@ -404,11 +470,11 @@ class Build:
                                 "color": "222222"},
                       "background": {"backgroundColor": "ffffff", "opacity": 0}},
             "geometry": self._geo(g, z, extra={
-                "label": {"calculatedWidth": 0, "margin": {"bottom": 4, "right": 12},
+                "label": {"calculatedWidth": 0, "margin": {"bottom": label_gap, "right": 12},
                           "alignment": "top"},
-                "field": {"height": 44, "width": 100, "groupWidth": 100,
-                          "margin": {"bottom": 18}, "fontSize": 14, "cornerRadius": 6,
-                          "border": {"color": "d6d6d2", "style": "solid", "width": 1}},
+                "field": {"height": field_h, "width": 100, "groupWidth": 100,
+                          "margin": {"bottom": field_gap}, "fontSize": 14, "cornerRadius": 6,
+                          "border": {"color": "d6d6d2", "style": "solid", "width": border_w}},
                 "buttonPlacement": "auto", "progressBarPlacement": "auto"}),
             "content": {"submitButtonText": submit["label"], "confirmAction": "modal",
                         "confirmMessage": submit.get("confirm", "Thanks — we'll be in touch."),
@@ -457,9 +523,11 @@ class Build:
         rules = ["a{text-decoration:none}",
                  ".lp-pom-form-field input:focus,.lp-pom-form-field textarea:focus"
                  f"{{outline:2px solid #{accent};outline-offset:0;background:#fff}}"]
-        # native lp-pom-image STRETCHES to its box — object-fit is the only way to crop
-        for eid, how in self.fit.items():
-            rules.append(f"#{eid} img{{width:100%!important;height:100%!important;"
+        # native lp-pom-image STRETCHES to its box — object-fit is the only way to crop.
+        # Target a class, never a list of ids: one rule however many images, and the client
+        # can add or remove `fit-cover` on an element from the editor's custom-class field.
+        for how in sorted(self.fit):
+            rules.append(f".fit-{how} img{{width:100%!important;height:100%!important;"
                          f"object-fit:{how}!important}}")
         self.add({"name": "Stylesheet 1", "containerId": None, "placement": "body:after",
                   "content": {"type": None, "html": "<style>\n" + "\n".join(rules) + "\n</style>",
@@ -648,6 +716,7 @@ def write_archive(out, page_name, els, fonts, in_use, assets):
             return None
         ti.uid = ti.gid = 0
         ti.uname, ti.gname = "nobody", "nogroup"
+        ti.mode = 0o755 if ti.isdir() else 0o644   # real exports ship 0644 files
         return ti
 
     if os.path.exists(out):
@@ -741,6 +810,7 @@ def transcribe(html_path, out_path, page_name, company_id):
     body_font = (body.get("data-body-font")
                  or (list(in_use)[-1] if in_use else "Open Sans"))
     assets, base = [], os.path.dirname(os.path.abspath(html_path))
+    asset_by_path = {}                                # realpath -> asset record (dedup)
     lp_of = {}                                        # design id -> lp id
     z = [0]
 
@@ -776,8 +846,13 @@ def transcribe(html_path, out_path, page_name, company_id):
                 errors.append(f"#{node['id']}: asset not found: {srcp}")
                 return
             wh = [int(px(v, 0)) for v in nat.split("x")[:2]]
-            asset = make_asset(srcp, wh, company_id)
-            assets.append((srcp, asset))
+            # one record per source file — real exports share one asset uuid across
+            # elements (Maddy's export: 6 images -> 1 asset)
+            key = os.path.realpath(srcp)
+            asset = asset_by_path.get(key)
+            if asset is None:
+                asset = asset_by_path[key] = make_asset(srcp, wh, company_id)
+                assets.append((srcp, asset))
             eid = b.image(asset, g, container, z[0],
                           node["attrs"].get("data-fit"), node["attrs"].get("href"))
         elif lp in ("button", "submit"):
@@ -785,7 +860,8 @@ def transcribe(html_path, out_path, page_name, company_id):
             style = btn_style(s, accent, ink, body_font)
             if lp == "button":
                 href = node["attrs"].get("href", "")
-                eid = b.button(inner or node["attrs"].get("data-label", "Button"), g,
+                eid = b.button(node["attrs"].get("data-label") or label_text(inner)
+                               or "Button", g,
                                container, z[0], href,
                                "url", style)
         elif lp == "code":
@@ -796,7 +872,8 @@ def transcribe(html_path, out_path, page_name, company_id):
                 errors.append(f"#{node['id']}: form needs a child with data-lp-type=\"submit\"")
                 return
             st = btn_style(sub["style"], accent, ink, body_font)
-            st.update(label="".join(sub["inner"]).strip() or "Submit",
+            st.update(label=(sub["attrs"].get("data-label")
+                             or label_text("".join(sub["inner"])) or "Submit"),
                       geo=geo_of(sub, mrules, errors, "Form Submit Button"),
                       confirm=node["attrs"].get("data-confirm"))
             if not st["confirm"]:
@@ -805,7 +882,7 @@ def transcribe(html_path, out_path, page_name, company_id):
                 t = (f.get("type") or "text").lower()
                 if t not in INPUT_LPTYPE:
                     errors.append(f"#{node['id']}: <input type=\"{t}\"> has no verified "
-                                  f"lpType — use text/email/tel, or add it in the editor")
+                                  f"lpType — use text/email/tel/hidden, or add it in the editor")
             eid = b.form(g, container, z[0],
                          [f for f in node["fields"]
                           if (f.get("type") or "text").lower() in INPUT_LPTYPE],
@@ -814,6 +891,7 @@ def transcribe(html_path, out_path, page_name, company_id):
             return
         if eid:
             lp_of[node["id"]] = eid
+            b.cls(eid, *node["attrs"].get("class", "").split())
         for kid in node["kids"]:
             if kid["lp"] != "submit":
                 emit(kid, eid or container)
@@ -830,9 +908,11 @@ def transcribe(html_path, out_path, page_name, company_id):
                                    or node["style"].get("background"), "ffffff"),
                           g["mh"])
             lp_of[node["id"]] = bid
+            b.cls(bid, *node["attrs"].get("class", "").split())
             for kid in node["kids"]:
                 emit(kid, bid)
     b.stylesheet(accent)
+    b.apply_classes(errors)
 
     # resolve in-page anchors (#design-id -> #lp-pom-form-N)
     for e in b.els:
@@ -843,6 +923,13 @@ def transcribe(html_path, out_path, page_name, company_id):
             errors.append(f"{e['id']}: anchor {u} does not match any design element id")
 
     validate(b.els, errors, warnings)
+    # validate() names generated lp ids; translate back to design ids so the designer can
+    # act on an error without a lookup table (bakeoff arm a had to build one by hand)
+    of_lp = {v: "#" + k for k, v in lp_of.items()}
+    xlate = lambda s: re.sub(r"\blp-(?:pom-[a-z]+|code|stylesheet)-\d+\b",
+                             lambda m: of_lp.get(m.group(), m.group()), s)
+    warnings = [xlate(w) for w in warnings]
+    errors = [xlate(e) for e in errors]
     for w in warnings:
         print(f"  warn: {w}", file=sys.stderr)
     if errors:

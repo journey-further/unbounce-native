@@ -14,10 +14,12 @@ page, so what a browser shows is what Unbounce will show. Iterate at browser spe
 | Hide on mobile | `display:none !important` in that media block |
 | Nesting / grouping | the DOM tree |
 | Element type | `data-lp-type` |
+| Shared styling hook | `class` — ships as the element's Unbounce custom class (see below) |
 | Image crop mode | `data-fit="cover\|contain"` |
 | Image natural size | `data-nat="WIDTHxHEIGHT"` |
 | Fonts | the Google Fonts `<link>` href |
 | Page colours | `data-*` on `<body>` |
+| Form label / body font | `data-body-font` on `<body>` — the fallback is the **last** family in the fonts href, so set it explicitly |
 | Copy, colour, type | inline CSS inside the text element's HTML |
 
 ## Skeleton
@@ -29,16 +31,18 @@ page, so what a browser shows is what Unbounce will show. Iterate at browser spe
 <style>
   /* design-time only — not shipped; Unbounce handles breakpoints natively */
   body { position:relative; width:1280px; margin:0; font-family:'Open Sans',sans-serif; }
-  section { position:relative; width:1280px; overflow:hidden; }
+  section[data-lp-type="block"] { position:relative; width:1280px; overflow:hidden; }
   [data-lp-type] { position:absolute; box-sizing:border-box; }
   [data-lp-type="text"] p { margin:0; }
+  [data-lp-type="code"] svg { display:block; }
   @media (max-width:600px) {
+    /* abridged — every element (blocks too) needs a rule; see Mobile rules below */
     body, section { width:320px; }
-    #hero-h1 { left:10px; top:36px; width:300px; height:212px !important; }
+    #hero-h1 { left:10px !important; top:36px !important; width:300px !important; height:212px !important; }
     #hero-phone { display:none !important; }
   }
 </style></head>
-<body data-accent="#99cc00" data-ink="#1d2327" data-bg="#ffffff">
+<body data-accent="#99cc00" data-ink="#1d2327" data-bg="#ffffff" data-body-font="Open Sans">
 
 <section id="s-hero" data-lp-type="block" data-name="Hero" style="height:720px;background:#1d2327">
   <img id="hero-bg" data-lp-type="image" data-fit="cover" data-nat="2189x1642" src="assets/roof.webp"
@@ -61,8 +65,20 @@ page, so what a browser shows is what Unbounce will show. Iterate at browser spe
      style="left:70px;top:600px;width:180px;height:48px;background:#99cc00;color:#1d2327;border-radius:6px">Get a free estimate</a>
 </section>
 
+<section id="s-proof" data-lp-type="block" data-name="Proof" style="height:240px;background:#ffffff">
+  <div id="proof-h2" data-lp-type="text" style="left:70px;top:48px;width:564px;height:44px">
+    <p><span style="font-family:Oswald;font-size:32px;font-weight:700;color:#1d2327;line-height:1.2">1,000+ ROOFS REPLACED</span></p>
+  </div>
+</section>
+
 </body></html>
 ```
+
+⚠️ **The section selector must beat `[data-lp-type]{position:absolute}` on specificity.**
+With a bare `section` selector the attribute rule wins — (0,1,0) over (0,0,1) — so every
+block absolutely positions with no `top`, and the whole page collapses onto one stack at the
+origin, taking `measure.mjs`'s per-section walk with it. The skeleton shows two sections
+because the collapse is invisible with one.
 
 ## `data-lp-type`
 
@@ -74,19 +90,72 @@ create any.
   `height` and a background. `data-name` becomes the section's name in the editor; give
   every block one, the client sees it.
 - **`box`** — cards, overlays, dividers, accent strips, badges. `background`, `opacity`,
-  `border-radius`, `border`, `box-shadow` are all read.
+  `border-radius` and `border` are read; `box-shadow` is read **as a boolean** — every
+  shadow ships at the format's fixed opacity 22 / offset 12 / blur 34, so two visibly
+  different design shadows emit identically.
+  **Boxes nest to any depth, and nesting is the alignment tool.** A number inside a circle
+  inside a card is three levels: `text` → `box` (the circle) → `box` (the card). Putting the
+  number and the circle side by side as siblings of the card looks close and is never quite
+  centred, because it makes you hand-compute an offset the DOM would have given you free.
+  Rule: an element that sits *on* a shape goes *inside* that shape. Nesting is also what the
+  client feels — they drag the card and the whole unit moves.
 - **`text`** — inner HTML ships verbatim into `content.text`. Style it with inline spans;
   that is what makes arbitrary colours and fonts work and keeps it client-editable.
 - **`image`** — an `<img>`. `data-fit="cover"` for backgrounds and cropped photos,
   `"contain"` for logos. `data-nat` is required (see below). An `href` makes it clickable.
-- **`button`** — an `<a>` or `<button>`. Inner text is the label. `href="#some-id"` becomes
-  an in-page anchor, `href="tel:…"` a call link. Styling comes from inline CSS; add
-  `--hover:#88b800` for an explicit hover colour, otherwise it is derived by darkening.
+- **`button`** — an `<a>` or `<button>`. The label is the inner text, tags stripped
+  (`data-label` overrides it); a submit button with neither ships reading "Submit". Don't
+  nest other `data-lp-type` elements inside a button — its contents become the label, not
+  child elements. `href="#some-id"` becomes an in-page anchor, `href="tel:…"` a call link.
+  Styling comes from inline CSS; add `--hover:#88b800` for an explicit hover colour,
+  otherwise it is derived by darkening. Buttons **cannot have borders** — the format
+  hardcodes `border: none` in the `up` state, so an outline CTA is not expressible.
 - **`form`** — a real `<form>`. See below.
 - **`submit`** — the form's submit button, **a child of the `<form>`**, positioned relative
   to it.
 - **`code`** — inner HTML ships as Custom HTML. Embeds, decorative SVG, third-party
-  widgets. Never contains the literal string `<head>`.
+  widgets. Never contains the literal string `<head>`. Put `style="display:block"` inline
+  on every `<svg>` root — inline, so it ships inside the `lp-code` content and holds live;
+  an inline-level svg picks up ~5px of half-leading from ambient font metrics and
+  over-measures.
+
+## Classes — the only sanctioned stylesheet hook
+
+`class="…"` on any `data-lp-type` element ships verbatim as that element's
+`customClassnames`, which is the editor's own custom-class field: it survives a save, the
+client can see and change it in the UI, and the published DOM carries it. **Every rule in
+the page stylesheet targets a class.** Never an element id — an id list is CSS duplicated
+per element, invisible to the client, and it stops matching the moment someone deletes and
+re-adds the element.
+
+- The transcriber adds `fit-cover` / `fit-contain` itself, from `data-fit`, and emits one
+  `.fit-cover img{…}` rule however many images use it. You don't write those.
+- Add your own for anything else the sheet has to reach — a hover treatment on a row of
+  cards, a shared focus ring. Name them for the role, not the look (`review-card`, not
+  `white-box`).
+- Classes are space-separated and combine with the derived ones: an image with
+  `class="hero-media"` and `data-fit="cover"` ships `customClassnames: "fit-cover hero-media"`.
+- Names must be plain CSS identifiers — the transcriber errors on anything else, because
+  a name like `w-1/2` would silently produce a selector that matches nothing.
+- Styling that is *content or brand* (copy, colour, type) still goes **inline**, not in the
+  sheet. The rule of thumb is unchanged: the sheet carries mechanics the client shouldn't
+  touch. Classes make those mechanics reusable; they don't widen what belongs there.
+
+## Opacity — the one place the preview lies
+
+The contract's opening claim fails for translucency, in three ways:
+
+- **Box `opacity` splits.** CSS `opacity` on a div fades its whole subtree in the browser;
+  Unbounce stores it at `style.background.opacity`, which touches only the fill. A
+  translucent card with text inside is a preview that lies or output that lies.
+- **`rgba()` alpha is discarded.** The transcriber reads only the RGB channels —
+  `rgba(29,35,39,.55)` ships as opaque `#1d2327`.
+- **Text backgrounds are opaque or absent** — partial opacity on a text element is not
+  expressible. Images have no alpha channel at all.
+
+For a translucent panel with content inside it, **compute the composite colour and use a
+solid hex**. Exact over a flat background, wrong over a photo — over a photo, put the wash
+on the block, not a box. Never author `rgba()`.
 
 ## Geometry
 
@@ -109,7 +178,9 @@ The media block has a **pinned grammar** so a stdlib parser reads it without a C
 `height`, `display`. Anything else is a validator error, not a parse fallback.
 
 **Every positioned element needs a mobile rule** (geometry, or `display:none`). No rule is
-an error, not a silent inherit — mobile intent must be explicit.
+an error, not a silent inherit — mobile intent must be explicit. **Blocks too**: every
+section needs a mobile rule carrying its mobile height —
+`#s-hero { height:1860px !important; }`.
 
 **Hide-on-mobile is `display:none !important`**, not a data attribute. It has to be real CSS
 anyway, or hidden elements still render in the 320px preview and pollute the measured stack.
@@ -124,6 +195,7 @@ A real `<form>` with real inputs, mapped mechanically:
 | `<input type="text">` | `lpType: single-line-text` |
 | `<input type="email">` | `+ validations.email: true` |
 | `<input type="tel">` | `+ validations.phone: true`, `validationType: "north-american"` |
+| `<input type="hidden">` | `lpType: hidden`, with `value` as the prefilled value |
 | `required` | `validations.required` |
 | `name` | field `id` |
 | `placeholder` | `placeholder` |
@@ -134,36 +206,69 @@ A real `<form>` with real inputs, mapped mechanically:
 export, so the transcriber refuses rather than guessing — add those fields natively in the
 editor after import.
 
-**Style the design form to Unbounce's real chrome or the measurement lies.** Unbounce lays
-fields out on a **71px stride** — 15px label, 4px gap, 34px input inside a 53px container.
-Everything below the form stacks from its measured height, so an inaccurate form
-propagates error down the whole page. Put this in the design-time `<style>`:
+**Hidden fields take no vertical space.** `<input type="hidden" name="utm_source" value="">`
+ships as a real field that submits into the lead record, but it is laid out outside the 80px
+stride — so **don't budget a row for it** and don't give it a label. Put them last in the
+form, which is the shape that was actually probed. Filling one from a URL parameter is a
+domain-level script the client adds in Unbounce, not something the page file carries.
+
+**Fields stack, one per 80px row, at the form's full width.** `left` and `width` on an
+`<input>` are ignored — a two-column field layout is not expressible. Hidden fields are the
+exception: they occupy no row at all.
+
+**Style the design form to Unbounce's real chrome or the measurement lies.** With the chrome
+the transcriber emits, Unbounce lays fields out on an **80px stride** — 12px label, 4px gap,
+46px input inside a 62px container. Everything below the form stacks from its measured
+height, so an inaccurate form propagates error down the whole page. Put this in the
+design-time `<style>`:
 
 ```css
-form[data-lp-type="form"] input { position:absolute; left:0; width:100%; height:34px; margin:0;
+form[data-lp-type="form"] input { position:absolute; left:0; width:100%; height:46px; margin:0;
   box-sizing:border-box; border:1px solid #d6d6d2; border-radius:6px; background:#fafafa;
   font:14px 'Open Sans',sans-serif; padding:0 10px; }
-form[data-lp-type="form"] input:nth-of-type(1){ top:19px }
-form[data-lp-type="form"] input:nth-of-type(2){ top:90px }
-form[data-lp-type="form"] input:nth-of-type(3){ top:161px }   /* +71 per field */
+form[data-lp-type="form"] input:nth-of-type(1){ top:16px }
+form[data-lp-type="form"] input:nth-of-type(2){ top:96px }
+form[data-lp-type="form"] input:nth-of-type(3){ top:176px }   /* +80 per field */
+form[data-lp-type="form"] label { position:absolute; left:0; width:100%; height:12px;
+  font:600 11px 'Open Sans',sans-serif; color:#888888; }
+form[data-lp-type="form"] label:nth-of-type(1){ top:0 }
+form[data-lp-type="form"] label:nth-of-type(2){ top:80px }
+form[data-lp-type="form"] label:nth-of-type(3){ top:160px }   /* +80 per field */
 ```
 
-⚠️ Measured form height is **close, not exact** — this approximates Unbounce's own chrome.
-Tracked in `BACKLOG.md`; extract the real published markup when it starts to matter.
+The `<label>`s draw the 12px the stride budgets per field — without them the preview is
+missing chrome the live form has. **Labels inside a `<form>` are the one sanctioned
+untracked element**: the parser reads only `<input>`s from a form, so they ship nowhere and
+break nothing.
+
+These numbers are the editor's own recomputation, confirmed by round-trip diff — see the
+`publishedStyles` derivation in `skills/build-page/references/format.md`. If you change the
+form chrome in the
+transcriber, both the emitted `publishedStyles` and this CSS move together.
 
 ## Fonts
 
 Derived automatically from the Google Fonts `<link>` href → `settings.json` `fonts[]` +
-`webFontsInUse`. Declare exactly the families and weights the design uses; anything you
-reference in an inline style but don't declare renders as a fallback.
+`webFontsInUse`. Declare exactly the families and weights the design uses; a Google family
+referenced in an inline style but missing from the href renders as a fallback.
+
+**A face that isn't on Google Fonts still works** — proven 2026-07-29. Put its stylesheet
+`<link>` in one small `lp-code` element; the CSS is document-global, so every text element on
+the page can then use the family, and it needs no entry in the fonts href. Full recipe in
+`ui-capabilities.md` → *External fonts*.
+
+⚠️ **Quote a family name whose words aren't valid CSS identifiers.** `font-family:Open Sans`
+is fine unquoted; `font-family:Press Start 2P` is **invalid CSS** — `2P` starts with a digit,
+so the browser drops the declaration and the text silently falls back. The transcriber ships
+`content.text` verbatim and won't fix it. Quote when in doubt: `font-family:'Press Start 2P'`.
 
 ## Measurement
 
 Heights are **measured, never estimated**:
 
 ```bash
-node scripts/measure.mjs design.html desktop
-node scripts/measure.mjs design.html mobile shot-mobile.png
+node skills/design-page/scripts/measure.mjs design.html desktop
+node skills/design-page/scripts/measure.mjs design.html mobile shot-mobile.png
 ```
 
 It reports, per breakpoint: true wrapped `scrollHeight` for every text element, every
@@ -194,6 +299,8 @@ design. Between them nothing gets invented.
 - **Extract exact values from the source — never eyeball a screenshot.** Every hex,
   font-family/size/weight/line-height, image, dimension, gap and copy string comes from the
   source. Screenshots are for layout intent and final side-by-side QA only.
+- **The design is fixed-canvas.** Responsive source values (`clamp()`, `vw`, `%`) convert
+  to their **computed value at the 1280 viewport** — compute it, don't guess a compromise.
 - **Copy is verbatim.** No tightening, no paraphrase, unless a copy change is explicit.
 - **Preserve counts.** N cards in the brief → N cards in the build. The canonical failure is
   inventing a 6th card because "3×2 looks neater".
@@ -228,8 +335,10 @@ decomposes into rules, not taste:
 - **A header is one row, not a stack.** If a block's few children (≤3, none of them text,
   each ≤60px tall) fit side by side in 300px, keep them on one row — first left, last right.
   Stacking a 2-element header wastes half the block.
-- **Standalone CTAs centre in the column** and keep their width: `left = (300 − w)/2 + 10`.
-  Never left-aligned, never stretched.
+- **Standalone CTAs centre in the column** by choosing a width whose centred left edge
+  lands on a snap point — **300, 196 and 92 centre legally; most widths do not** (the
+  validator rejects `(300 − w)/2 + 10` for anything else). Never left-aligned, never
+  stretched.
 - **Hiding beats cramming.** Decorative flourishes, duplicate phone numbers already covered
   by a CTA, and empty placeholders should be `display:none`. This is the biggest single
   lever on mobile quality, and it is editorial — a human decision, not a derived one.
