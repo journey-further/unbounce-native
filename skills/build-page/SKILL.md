@@ -94,9 +94,10 @@ PY
    ships as the element's `customClassnames` — the editor's own custom-class field. An
    id-per-element selector list is duplicated CSS the client can't reach, and it silently
    stops matching the moment an element is replaced. `references/format.md`.
-6. **Never emit an unproven shape.** `<select>`, `<textarea>`, video and lightboxes have no
-   verified in-file form. The right answer is "add it natively in the editor", not a guess
-   that looks right in the editor and breaks live.
+6. **Never emit an unproven shape.** Video and lightboxes have no verified in-file form —
+   the right answer is "add it natively in the editor", not a guess that looks right in
+   the editor and breaks live. All six form field types ARE proven (2026-07-29 two-probe
+   fit — `references/format.md` → Forms) and emitted.
 7. **Never widen the transcriber to accommodate one design.** A genuinely new capability
    comes from the probe loop first: generate a small varied page, upload it, **download it
    again**, diff. What Unbounce changed is the answer. Then write the emitter, then write the
@@ -117,7 +118,8 @@ PY
 | `scripts/transcribe.py design.html out.unbounce` | **Python stdlib only** — no pip, no network |
 | `scripts/test_transcribe.py` | run after changing the transcriber |
 
-For anything non-trivial, spawn `build-pack` — it holds the format spec so the calling
+For anything non-trivial, spawn the `unbounce-native:build-pack` agent (that exact agent
+type — it is not named after this skill) — it holds the format spec so the calling
 context doesn't have to.
 
 ```bash

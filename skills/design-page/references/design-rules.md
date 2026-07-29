@@ -196,15 +196,32 @@ A real `<form>` with real inputs, mapped mechanically:
 | `<input type="email">` | `+ validations.email: true` |
 | `<input type="tel">` | `+ validations.phone: true`, `validationType: "north-american"` |
 | `<input type="hidden">` | `lpType: hidden`, with `value` as the prefilled value |
-| `required` | `validations.required` |
+| `<select><option>…</option></select>` | `lpType: drop-down` — each option's text is both the stored value and the label |
+| `<textarea rows="4">` | `lpType: multi-line-text` — `rows` → `numberOfLines` (default 4); no placeholder, no prefilled text |
+| `<input type="checkbox" value="…">` × n, same `name` | one `lpType: checkbox-group` — each `value` is an option (stored value == visible label); `data-label` on the first input |
+| `<input type="radio" value="…">` × n, same `name` | one `lpType: radio-group`, same rules |
+| `required` | `validations.required` (for groups: on the first input) |
 | `name` | field `id` |
 | `placeholder` | `placeholder` |
 | `data-label` | the visible field label (falls back to `placeholder`, then `name`) |
 | `data-confirm` on the `<form>` | the modal confirmation message |
 
-**`<select>` and `<textarea>` are a hard error.** Their in-file shape appears in no real
-export, so the transcriber refuses rather than guessing — add those fields natively in the
-editor after import.
+**`<select>` is supported** (probed live 2026-07-29 — format.md). One string per option:
+the option's text is both the stored value and the visible label, so a `value` attribute
+that differs from its text is an error, not a silent drop — the lead record would lie
+about what the visitor saw. A drop-down occupies a normal field row with exactly the same
+chrome as a text input; style it identically in the design CSS. ⚠️ The stride snippet
+below positions with `input:nth-of-type(n)`, which counts **per tag** — a `<select>` in
+the stack breaks the count for every input after it, so on a mixed form give each field
+its own explicit `top` instead.
+
+**`<textarea>` and checkbox/radio groups are supported** (two-probe fit 2026-07-29 —
+format.md → Forms has the formulas and their evidence limits). A textarea can carry no
+placeholder and no prefilled text — either is an error, because the live shape can't
+express them and the preview would lie. Checkbox/radio options are consecutive same-`name`
+inputs, each with a `value` that is both the stored value and the visible label; render
+the visible option text in the design with `<label>` elements the transcriber ignores,
+but keep it equal to the `value`.
 
 **Hidden fields take no vertical space.** `<input type="hidden" name="utm_source" value="">`
 ships as a real field that submits into the lead record, but it is laid out outside the 80px
@@ -212,20 +229,32 @@ stride — so **don't budget a row for it** and don't give it a label. Put them 
 form, which is the shape that was actually probed. Filling one from a URL parameter is a
 domain-level script the client adds in Unbounce, not something the page file carries.
 
-**Fields stack, one per 80px row, at the form's full width.** `left` and `width` on an
-`<input>` are ignored — a two-column field layout is not expressible. Hidden fields are the
-exception: they occupy no row at all.
+**Fields stack at per-type heights, at the form's full width.** `left` and `width` on a
+field are ignored — a two-column field layout is not expressible. With the chrome the
+transcriber emits (12px label, 4px gap → input top 16, then 18px between fields), each
+field's row is:
 
-**Style the design form to Unbounce's real chrome or the measurement lies.** With the chrome
-the transcriber emits, Unbounce lays fields out on an **80px stride** — 12px label, 4px gap,
-46px input inside a 62px container. Everything below the form stacks from its measured
-height, so an inaccurate form propagates error down the whole page. Put this in the
-design-time `<style>`:
+| Field | container height | + 18 gap = row |
+|---|---|---|
+| text / email / tel / `<select>` | 62 | 80 |
+| `<textarea rows="L">` | 17L + 52 (rows=4 → 120) | 17L + 70 (138) |
+| checkbox/radio, n options | 16 + 23n (n=3 → 85) | 34 + 23n (103) |
+| `<input type="hidden">` | no row at all | 0 |
+
+Budget the form height (and every field's design-time `top`) from this table — everything
+below the form stacks from its measured height, so an inaccurate form propagates error
+down the whole page.
+
+**Style the design form to Unbounce's real chrome or the measurement lies.** Put this in
+the design-time `<style>`:
 
 ```css
-form[data-lp-type="form"] input { position:absolute; left:0; width:100%; height:46px; margin:0;
+form[data-lp-type="form"] input, form[data-lp-type="form"] select,
+form[data-lp-type="form"] textarea {
+  position:absolute; left:0; width:100%; height:46px; margin:0;
   box-sizing:border-box; border:1px solid #d6d6d2; border-radius:6px; background:#fafafa;
   font:14px 'Open Sans',sans-serif; padding:0 10px; }
+form[data-lp-type="form"] textarea { padding:8px 10px; }  /* height: 20*rows + 11 */
 form[data-lp-type="form"] input:nth-of-type(1){ top:16px }
 form[data-lp-type="form"] input:nth-of-type(2){ top:96px }
 form[data-lp-type="form"] input:nth-of-type(3){ top:176px }   /* +80 per field */

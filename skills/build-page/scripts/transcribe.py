@@ -14,6 +14,7 @@ See references/format.md (file format), references/grid.md (geometry + snap),
 references/design-rules.md (the design contract this parses).
 """
 import argparse, json, os, re, shutil, sys, tarfile, uuid
+from html import unescape
 from html.parser import HTMLParser
 
 # ---- geometry system: references/grid.md ----
@@ -36,6 +37,14 @@ INPUT_LPTYPE = {
     # hidden carries a different field shape (a `value`, no placeholder/show/validations) and
     # sits outside the visible field stride — see form() and format.md.
     "hidden": ("hidden", {}),
+    # a real <select> — the parser collects its options; drop-down shares the single-line
+    # stride and selectors (live probe 2026-07-29, format.md).
+    "select": ("drop-down", {}),
+    # fitted from the two-probe observations 2026-07-29 — see format.md → Forms for the
+    # derived-height formulas each of these carries.
+    "textarea": ("multi-line-text", {}),
+    "checkbox": ("checkbox-group", {}),
+    "radio":    ("radio-group", {}),
 }
 
 
@@ -91,6 +100,8 @@ class Design(HTMLParser):
         super().__init__(convert_charrefs=False)
         self.nodes, self.open, self.css = [], [], []
         self.cap = None            # (node, tag, depth) — raw innerHTML capture
+        self.sel = None            # open <select>: its attrs + [value_attr, text] options
+        self.ta = None             # open <textarea> field dict (inner text must be empty)
         self.in_style = False
         self.body = {}
         self.font_href = None
@@ -120,11 +131,31 @@ class Design(HTMLParser):
         if tag == "body":
             self.body = a
             return
-        if tag in ("select", "textarea"):
-            self.errors.append(f"<{tag}> has no verified in-file shape — "
-                               "remove it and add the field natively in the Unbounce editor")
-            return
         parent = self.open[-1] if self.open else None
+        if tag == "textarea":
+            if parent and parent["lp"] == "form":
+                # the multi-line-text shape has no placeholder and no prefill — refuse
+                # rather than silently render a preview the live page can't match
+                if a.get("placeholder"):
+                    self.errors.append("<textarea> placeholder is not expressible — the "
+                                       "multi-line-text shape has none; use data-label")
+                if a.get("rows") and not a["rows"].isdigit():
+                    self.errors.append(f"<textarea rows=\"{a['rows']}\"> must be an integer")
+                self.ta = dict(a, type="textarea")
+                parent["fields"].append(self.ta)
+            else:
+                self.errors.append("<textarea> is only supported as a form field")
+            return
+        if tag == "select":
+            if parent and parent["lp"] == "form":
+                self.sel = dict(a, type="select", options=[])
+            else:
+                self.errors.append("<select> is only supported as a form field")
+            return
+        if tag == "option":
+            if self.sel is not None:
+                self.sel["options"].append([a.get("value"), ""])
+            return
         lp = a.get("data-lp-type")
         if tag == "input" and parent and parent["lp"] == "form":
             parent["fields"].append(a)
@@ -160,6 +191,27 @@ class Design(HTMLParser):
                     return
             self._raw(f"</{tag}>")
             return
+        if tag == "select" and self.sel is not None:
+            f, self.sel = self.sel, None
+            opts = []
+            for val, text in f["options"]:
+                text = " ".join(text.split())
+                # the drop-down shape stores ONE string per option (value == label), so a
+                # value attribute that differs from the text is not expressible
+                if val is not None and val != text:
+                    self.errors.append(f'<option value="{val}"> differs from its text '
+                                       f'"{text}" — the drop-down shape stores one string '
+                                       "per option (value == label)")
+                opts.append(text or val or "")
+            if not opts:
+                self.errors.append(f"<select name=\"{f.get('name', '')}\"> needs options")
+            f["options"] = opts
+            if self.open:
+                self.open[-1]["fields"].append(f)
+            return
+        if tag == "textarea":
+            self.ta = None
+            return
         if tag == "style":
             self.in_style = False
         elif self.open and self.open[-1]["tag"] == tag:
@@ -170,12 +222,24 @@ class Design(HTMLParser):
             self._raw(d)
         elif self.in_style:
             self.css.append(d)
+        elif self.sel is not None and self.sel["options"]:
+            self.sel["options"][-1][1] += d
+        elif self.ta is not None and d.strip():
+            self.errors.append("<textarea> prefilled text is not expressible — the "
+                               "multi-line-text shape has no value; leave it empty")
+            self.ta = None
 
     def handle_entityref(self, n):
-        self._raw(f"&{n};")
+        if self.cap:
+            self._raw(f"&{n};")
+        else:
+            self.handle_data(unescape(f"&{n};"))
 
     def handle_charref(self, n):
-        self._raw(f"&#{n};")
+        if self.cap:
+            self._raw(f"&#{n};")
+        else:
+            self.handle_data(unescape(f"&#{n};"))
 
     def handle_comment(self, d):
         self._raw(f"<!--{d}-->")
@@ -427,6 +491,37 @@ class Build:
                             "id": f.get("name") or f.get("id"), "type": "hidden",
                             "lpType": "hidden", "value": f.get("value", ""), "uuid": u})
                 continue
+            if itype == "select":
+                # Verified shape (live probe 2026-07-29): type stays "text", selectOptions
+                # are plain strings (value == label), no placeholder and no show. Derived
+                # styles are identical to single-line-text, so it shares the visible stride.
+                out.append({"name": f.get("data-label") or f.get("name") or "Field",
+                            "id": f.get("name") or f.get("id"), "type": "text",
+                            "lpType": "drop-down", "selectOptions": f.get("options") or [],
+                            "invalidOptions": [],
+                            "validations": {"required": "required" in f}, "uuid": u})
+                continue
+            if itype == "textarea":
+                # pixelHeight is inert while heightUnits is "lines" (publisher ternary
+                # skips it); 20px/line matches editor-authored files. No placeholder,
+                # no prefill — the shape has neither.
+                lines = int(f.get("rows") or 4)
+                out.append({"name": f.get("data-label") or f.get("name") or "Field",
+                            "id": f.get("name") or f.get("id"), "type": "textarea",
+                            "lpType": "multi-line-text", "heightUnits": "lines",
+                            "numberOfLines": lines, "pixelHeight": 20 * lines,
+                            "show": {"phone": False, "email": False},
+                            "validations": {"required": "required" in f}, "uuid": u})
+                continue
+            if itype in ("checkbox", "radio"):
+                # Verified shape: options carry {value, label}; the probe kept them equal
+                # and so do we. `required` comes from the group's first input.
+                out.append({"name": f.get("data-label") or f.get("name") or "Field",
+                            "id": f.get("name") or f.get("id"), "type": itype,
+                            "lpType": lptype,
+                            "options": [{"value": v, "label": v} for v in f["options"]],
+                            "validations": {"required": "required" in f}, "uuid": u})
+                continue
             fd = {"name": f.get("data-label") or f.get("placeholder") or f.get("name", "Field"),
                   "id": f.get("name") or f.get("id"), "placeholder": f.get("placeholder", ""),
                   "type": "text", "lpType": lptype,
@@ -437,35 +532,68 @@ class Build:
             out.append(fd)
         # publishedStyles is DERIVED from the form chrome below — the editor recomputes it on
         # save, so hard-coded values silently drift (found by round-trip diff). See format.md.
-        # ponytail: label height fitted to two observations (font 11 -> 12, 14 -> 15).
-        label_size, label_gap, field_h, border_w, field_gap = 11, 4, 44, 1, 18
+        # ponytail: every height here is fitted to exactly two editor observations
+        # (2026-07-29 two-probe fit) — a third styling that disagrees means re-fit, not fudge.
+        label_size, label_gap, field_h, border_w, field_gap, cbx_size = 11, 4, 44, 1, 18, 13
+        font_size = 14
         label_h = round(label_size * 1.1)
-        input_h = field_h + 2 * border_w
         input_top = label_h + label_gap
-        container_h = input_top + input_h
-        stride = container_h + field_gap
+        # option rows: line-height is round(1.16 * size) in Unbounce's own publisher
+        # bundle; the 17px floor is the checkbox glyph row (observed 17@13px twice, and
+        # 19@16px = the bare line-height).
+        opt_h = max(17, round(1.16 * cbx_size))
         # Hidden fields take no stride slot and no container/input/label triple — just one
         # zero-size `#<id>` rule, appended after the visible ones (verified: real export
         # 2026-07-28, hidden field last). So the form's height budget is visible fields only.
         vis = [f for f in out if f["lpType"] != "hidden"]
         hid = [f for f in out if f["lpType"] == "hidden"]
-        pub = lambda w: [s for i, f in enumerate(vis) for s in (
-            {"selector": f"#container_{f['id']}", "top": i * stride, "left": 0, "width": w,
-             "height": container_h},
-            {"selector": f".lp-pom-form-field .ub-input-item.single.form_elem_{f['id']}",
-             "top": input_top, "left": 0, "width": w, "height": input_h},
-            {"selector": f"#label_{f['id']}", "top": 0, "left": 0, "width": w,
-             "height": label_h})] + [
-            {"selector": f"#{f['id']}", "top": 0, "left": 0, "width": 0, "height": 0}
-            for f in hid]
+
+        def pub(w):
+            sels, top = [], 0
+            for f in vis:
+                i, lpt = f["id"], f["lpType"]
+                if lpt in ("checkbox-group", "radio-group"):
+                    # rows on an (opt_h + 6) stride; group = n rows; container exact
+                    group_h = len(f["options"]) * (opt_h + 6)
+                    cont_h = input_top + group_h
+                    sels.append({"selector": f"#container_{i}", "top": top, "left": 0,
+                                 "width": w, "height": cont_h})
+                    sels += [{"selector": f"#ub-option-{i}-item-{k}",
+                              "top": k * (opt_h + 6), "left": 0, "width": w, "height": opt_h}
+                             for k in range(len(f["options"]))]
+                    sels.append({"selector": f".ub-input-item#group_{i}", "top": input_top,
+                                 "left": 0, "width": w, "height": group_h})
+                else:
+                    if lpt == "multi-line-text":
+                        # Unbounce's publisher: round(1.2*fontSize)*lines + vertical
+                        # padding (field height - font size) + borders. pixelHeight is
+                        # inert while heightUnits is "lines". Container carries a +4 that
+                        # single-line containers don't (held in all three probes).
+                        item_h = (round(1.2 * font_size) * f["numberOfLines"]
+                                  + (field_h - font_size) + 2 * border_w)
+                        cont_h = input_top + item_h + 4
+                    else:
+                        item_h = field_h + 2 * border_w
+                        cont_h = input_top + item_h
+                    sels.append({"selector": f"#container_{i}", "top": top, "left": 0,
+                                 "width": w, "height": cont_h})
+                    sels.append({"selector": f".lp-pom-form-field .ub-input-item.single"
+                                             f".form_elem_{i}", "top": input_top, "left": 0,
+                                 "width": w, "height": item_h})
+                sels.append({"selector": f"#label_{i}", "top": 0, "left": 0, "width": w,
+                             "height": label_h})
+                top += cont_h + field_gap
+            return sels + [{"selector": f"#{f['id']}", "top": 0, "left": 0, "width": 0,
+                            "height": 0} for f in hid]
         submit_id = self.nid("pom-button")
         self.add({
             "name": g["name"], "id": fid, "type": "lp-pom-form", "containerId": container,
             "style": {"label": {"font": {"size": label_size, "family": body_font, "weight": 600,
                                          "style": "normal", "textStyles": {"strong": True}},
                                 "color": "888888", "centerAlign": False},
-                      "cbxlabel": {"font": {"size": 13, "family": body_font, "weight": 400,
-                                            "style": "normal"}, "color": "000"},
+                      "cbxlabel": {"font": {"size": cbx_size, "family": body_font,
+                                            "weight": 400, "style": "normal"},
+                                   "color": "000"},
                       "field": {"innerShadow": False, "backgroundColor": "fafafa",
                                 "color": "222222"},
                       "background": {"backgroundColor": "ffffff", "opacity": 0}},
@@ -473,7 +601,8 @@ class Build:
                 "label": {"calculatedWidth": 0, "margin": {"bottom": label_gap, "right": 12},
                           "alignment": "top"},
                 "field": {"height": field_h, "width": 100, "groupWidth": 100,
-                          "margin": {"bottom": field_gap}, "fontSize": 14, "cornerRadius": 6,
+                          "margin": {"bottom": field_gap}, "fontSize": font_size,
+                          "cornerRadius": 6,
                           "border": {"color": "d6d6d2", "style": "solid", "width": border_w}},
                 "buttonPlacement": "auto", "progressBarPlacement": "auto"}),
             "content": {"submitButtonText": submit["label"], "confirmAction": "modal",
@@ -878,15 +1007,31 @@ def transcribe(html_path, out_path, page_name, company_id):
                       confirm=node["attrs"].get("data-confirm"))
             if not st["confirm"]:
                 st.pop("confirm")
+            flds = []
             for f in node["fields"]:
                 t = (f.get("type") or "text").lower()
                 if t not in INPUT_LPTYPE:
                     errors.append(f"#{node['id']}: <input type=\"{t}\"> has no verified "
-                                  f"lpType — use text/email/tel/hidden, or add it in the editor")
-            eid = b.form(g, container, z[0],
-                         [f for f in node["fields"]
-                          if (f.get("type") or "text").lower() in INPUT_LPTYPE],
-                         st, body_font)
+                                  f"lpType — use text/email/tel/hidden/checkbox/radio, "
+                                  f"a real <select> or <textarea>, or add it in the editor")
+                    continue
+                if t in ("checkbox", "radio"):
+                    # consecutive same-name inputs are ONE group field; each value attr is
+                    # an option's stored value AND label (the probed shape keeps them equal)
+                    if not f.get("value"):
+                        errors.append(f"#{node['id']}: <input type=\"{t}\" name="
+                                      f"\"{f.get('name', '')}\"> needs a value attribute — "
+                                      f"the option's stored value and visible label")
+                        continue
+                    prev = flds[-1] if flds else None
+                    if (prev and prev.get("type") == t
+                            and prev.get("name") == f.get("name")):
+                        prev["options"].append(f["value"])
+                        continue
+                    flds.append(dict(f, options=[f["value"]]))
+                else:
+                    flds.append(f)
+            eid = b.form(g, container, z[0], flds, st, body_font)
         else:
             return
         if eid:

@@ -140,6 +140,88 @@ assert hps[-1] == {"selector": "#utm_source", "top": 0, "left": 0,
                    "width": 0, "height": 0}, hps[-1]
 assert [p["top"] for p in hps[:9:3]] == [0, 80, 160]     # visible stride unshifted
 assert hform["breakpoints"]["mobile"]["publishedStyles"][-1]["selector"] == "#utm_source"
+
+# ---- drop-down (select) field --------------------------------------------------
+# Shape verified by live probe (2026-07-29): type stays "text", selectOptions are plain
+# strings (value == label), no placeholder/show; shares the single-line stride.
+rc, err, sout = run(GOOD.replace(
+    '<input type="tel" name="phone" placeholder="Phone" required>',
+    '<select name="service" data-label="Service Needed" required>\n'
+    '        <option>Roof Replacement</option>\n'
+    '        <option>Gutters &amp; Siding</option>\n'
+    '      </select>'))
+assert rc == 0, f"select rejected:\n{err}"
+sform = next(e for e in elements(sout)[0] if e["type"] == "lp-pom-form")
+s = next(f for f in sform["content"]["fields"] if f["lpType"] == "drop-down")
+assert s == {"name": "Service Needed", "id": "service", "type": "text",
+             "lpType": "drop-down",
+             "selectOptions": ["Roof Replacement", "Gutters & Siding"],
+             "invalidOptions": [], "validations": {"required": True},
+             "uuid": s["uuid"]}, s
+assert s["uuid"] in sform["content"]["steps"][0]["fieldUUIDs"], "select must submit"
+sps = sform["publishedStyles"]
+assert len(sps) == 9 and [p["top"] for p in sps[::3]] == [0, 80, 160]
+assert sps[7]["selector"] == ".lp-pom-form-field .ub-input-item.single.form_elem_service"
+# an <option value="…"> differing from its text is not expressible — one string per option
+rc, err, _ = run(GOOD.replace(
+    '<input type="tel" name="phone" placeholder="Phone" required>',
+    '<select name="s"><option value="1">One</option></select>'))
+assert rc != 0 and "one string per option" in err, err
+
+# ---- textarea + checkbox/radio groups ------------------------------------------
+# Derived heights are the 2026-07-29 two-probe fit (format.md): textarea item is
+# 20*lines + 11 with a +4 container quirk; option rows sit on an (opt_h + 6) stride.
+rc, err, tout = run(GOOD.replace(
+    '<input type="tel" name="phone" placeholder="Phone" required>',
+    '<textarea name="message" data-label="Message" rows="4" required></textarea>\n'
+    '      <input type="checkbox" name="services" value="Roof" data-label="Services">\n'
+    '      <input type="checkbox" name="services" value="Gutters">\n'
+    '      <input type="radio" name="urgency" value="Now" data-label="Urgency">\n'
+    '      <input type="radio" name="urgency" value="Later">'))
+assert rc == 0, f"textarea/checkbox/radio rejected:\n{err}"
+tform = next(e for e in elements(tout)[0] if e["type"] == "lp-pom-form")
+ta = next(f for f in tform["content"]["fields"] if f["lpType"] == "multi-line-text")
+assert ta == {"name": "Message", "id": "message", "type": "textarea",
+              "lpType": "multi-line-text", "heightUnits": "lines", "numberOfLines": 4,
+              "pixelHeight": 80, "show": {"phone": False, "email": False},
+              "validations": {"required": True}, "uuid": ta["uuid"]}, ta
+cbx = next(f for f in tform["content"]["fields"] if f["lpType"] == "checkbox-group")
+assert cbx["type"] == "checkbox" and cbx["id"] == "services"
+assert cbx["options"] == [{"value": "Roof", "label": "Roof"},
+                          {"value": "Gutters", "label": "Gutters"}]
+rad = next(f for f in tform["content"]["fields"] if f["lpType"] == "radio-group")
+assert rad["options"] == [{"value": "Now", "label": "Now"},
+                          {"value": "Later", "label": "Later"}]
+tps = {p["selector"]: p for p in tform["publishedStyles"]}
+# chrome: label 12, gap 4 -> input top 16; singles 62; textarea item = round(1.2*14)*4
+# + (44-14) + 2 = 100 (Unbounce's publisher formula), container +4; groups 16+2*23=62
+assert tps["#container_message"]["height"] == 120
+assert tps[".lp-pom-form-field .ub-input-item.single.form_elem_message"]["height"] == 100
+assert tps["#container_services"]["height"] == 62
+assert tps["#ub-option-services-item-1"] == {"selector": "#ub-option-services-item-1",
+                                             "top": 23, "left": 0, "width": 460,
+                                             "height": 17}
+assert tps[".ub-input-item#group_services"] == {"selector": ".ub-input-item#group_services",
+                                                "top": 16, "left": 0, "width": 460,
+                                                "height": 46}
+# stride: two 80px singles, then 120+18, then 62+18 twice
+assert [tps[f"#container_{i}"]["top"] for i in
+        ("first_name", "email", "message", "services", "urgency")] == [0, 80, 160, 298, 378]
+# textarea placeholder/prefill are not expressible
+rc, err, _ = run(GOOD.replace(
+    '<input type="tel" name="phone" placeholder="Phone" required>',
+    '<textarea name="m" placeholder="Tell us"></textarea>'))
+assert rc != 0 and "placeholder is not expressible" in err, err
+rc, err, _ = run(GOOD.replace(
+    '<input type="tel" name="phone" placeholder="Phone" required>',
+    '<textarea name="m">prefill</textarea>'))
+assert rc != 0 and "prefilled text is not expressible" in err, err
+# checkbox/radio options need a value attribute
+rc, err, _ = run(GOOD.replace(
+    '<input type="tel" name="phone" placeholder="Phone" required>',
+    '<input type="checkbox" name="c">'))
+assert rc != 0 and "needs a value attribute" in err, err
+
 # hide-on-mobile comes from display:none, not a data attribute
 deco = next(e for e in els if e["type"] == "lp-code")
 assert deco["breakpoints"]["mobile"]["geometry"]["visible"] is False
@@ -193,7 +275,9 @@ fails(lambda h: h.replace("left:70px;top:96px", "left:70px;top:99px"), "not a mu
 fails(lambda h: h.replace("width:564px;height:132px", "width:1240px;height:132px"), "exceeds canvas")
 fails(lambda h: h.replace("#h1 { left: 10px", "#h1 { left: 34px"), "exceeds canvas")
 fails(lambda h: h.replace('<input type="tel"', '<select name="x"></select><input type="tel"'),
-      "add the field natively")
+      "needs options")
+fails(lambda h: h.replace('<section id="hero"', '<select name="x"></select><section id="hero"'),
+      "only supported as a form field")
 fails(lambda h: h.replace('type="tel"', 'type="date"'), "no verified")
 fails(lambda h: h.replace('data-lp-type="submit"', 'data-lp-type="button"'), "needs a child")
 fails(lambda h: h.replace('href="#f"', 'href="#nope"'), "does not match any design element")

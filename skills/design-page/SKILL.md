@@ -48,7 +48,8 @@ Nothing here depends on how the file was created or which session created it.
 
 ## Flow
 
-**1 · Brand → tokens.** Spawn `brand-extract` with whatever brand input exists (a design
+**1 · Brand → tokens.** Spawn the `unbounce-native:brand-extract` agent (that exact agent
+type) with whatever brand input exists (a design
 system doc, a URL, a screenshot, a PDF). It returns colours, fonts, radii, spacing. Brand is
 always an **input** — never bundled in this plugin.
 
@@ -83,7 +84,8 @@ validator: `python3 skills/build-page/scripts/transcribe.py design.html /tmp/pro
 Run it early and often, delete the output. Getting it to exit 0 is not sign-off — it cannot
 see whether the design is any good.
 
-**4 · Mobile.** Spawn `mobile-derive` on the desktop design. It returns the
+**4 · Mobile.** Spawn the `unbounce-native:mobile-derive` agent (that exact agent type) on
+the desktop design. It returns the
 `@media (max-width:600px)` block plus a short report of the *decisions* it made ("hid the
 header phone number — the CTA covers it"). The user overrides named decisions, never
 coordinates. Re-measure at mobile.
